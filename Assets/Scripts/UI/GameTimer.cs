@@ -118,4 +118,11 @@ public class GameTimer : MonoBehaviour
             _flashCoroutine = null;
         }
     }
+
+// Seconds survived this run. Used by the death screen to show run length.
+    public float GetElapsedTime()
+    {
+        return _elapsedTime;
+    }
+
 }

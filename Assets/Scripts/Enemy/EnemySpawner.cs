@@ -45,6 +45,11 @@ public class EnemySpawner : MonoBehaviour
     [Tooltip("Maximum distance from the player to spawn enemies.")]
     public float maxSpawnDistance = 20f;
 
+    [Header("Performance")]
+    [Tooltip("Maximum enemies allowed alive at once. Caps horde size so framerate stays stable during long runs.")]
+    public int maxEnemies = 150;
+
+
     [HideInInspector]
     public bool isSpawning = false;
 
@@ -76,9 +81,14 @@ public class EnemySpawner : MonoBehaviour
         }
     }
 
-    private void SpawnEnemy()
+private void SpawnEnemy()
     {
         if (enemyTypes == null || enemyTypes.Count == 0) return;
+
+        // Stop spawning once we hit the live-enemy cap. Protects framerate during long runs.
+        // ponytail: FindGameObjectsWithTag scans each spawn tick (cheap at this cadence).
+        // If the profiler ever flags it, track a live counter here + decrement in EnemyHealth.Die instead.
+        if (GameObject.FindGameObjectsWithTag("Enemy").Length >= maxEnemies) return;
 
         // Select an enemy index using weighted random selection
         int selectedIndex = GetRandomEnemyIndex();
@@ -93,15 +103,16 @@ public class EnemySpawner : MonoBehaviour
         // Spawn the enemy
         GameObject enemyInstance = Instantiate(config.enemyPrefab, spawnPosition, Quaternion.identity);
 
-        // Scale stats dynamically based on index in the list or custom inspector overrides
+        // Per-type multipliers. Each enemy's identity now lives in its own prefab (base HP/speed/etc.),
+        // so a blank (0) multiplier means \"use the prefab value as-is\" (neutral 1.0).
+        // Set a multiplier > 0 in the Inspector only if you want to scale a specific type up or down.
         float scaleFactor = config.healthAndRewardMultiplier;
         float damageScale = config.damageMultiplier;
         float speedScale = config.speedMultiplier;
 
-        // Fallback to auto-calculated index values if left at 0 in Inspector
-        if (scaleFactor <= 0.05f) scaleFactor = 1f + (selectedIndex * 0.5f);
-        if (damageScale <= 0.05f) damageScale = 1f + (selectedIndex * 0.3f);
-        if (speedScale <= 0.05f) speedScale = 1f + (selectedIndex * 0.1f);
+        if (scaleFactor <= 0.05f) scaleFactor = 1f;
+        if (damageScale <= 0.05f) damageScale = 1f;
+        if (speedScale <= 0.05f) speedScale = 1f;
 
         EnemyHealth healthComp = enemyInstance.GetComponent<EnemyHealth>();
         if (healthComp != null)

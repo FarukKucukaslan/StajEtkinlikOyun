@@ -91,8 +91,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 67d244fd0352a704d8c7076ac7214d9e, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::EnemySimpleAI
-  speed: 3
+  speed: 4.3
   rotationSpeed: 360
+  damage: 7
+  attackCooldown: 0.5
+  attackRange: 1.3
 --- !u!114 &1851150395600003022
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -105,8 +108,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 5fed26303998fc14e93bae5570d85d5a, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::EnemyHealth
-  maxHealth: 20
-  xpReward: 15
+  maxHealth: 14
+  xpReward: 10
+  goldReward: 4
+  flashColor: {r: 1, g: 0.25, b: 0.25, a: 1}
+  flashDuration: 0.08
 --- !u!136 &7760444107485026536
 CapsuleCollider:
   m_ObjectHideFlags: 0

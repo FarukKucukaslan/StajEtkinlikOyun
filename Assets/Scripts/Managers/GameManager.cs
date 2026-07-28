@@ -34,7 +34,7 @@ public class GameManager : MonoBehaviour
         }
     }
 
-    private void Start()
+private void Start()
     {
         // Auto-find references if not assigned
         if (playerObj == null)
@@ -59,6 +59,9 @@ public class GameManager : MonoBehaviour
         {
             gameTimer = FindFirstObjectByType<GameTimer>();
         }
+
+        // Give the main-menu buttons the game's visual theme.
+        StyleMenuButtons();
 
         // Initialize state: Pause game and open Main Menu
         ReturnToMainMenu();
@@ -125,20 +128,42 @@ public class GameManager : MonoBehaviour
         Debug.Log("Game Started!");
     }
 
-    public void OnPlayerDeath(int goldCollectedThisRun)
+public void OnPlayerDeath(int goldCollectedThisRun)
     {
         // 1. Save gold collected permanently
         int totalGold = PlayerPrefs.GetInt("PlayerGold", 0);
-        PlayerPrefs.SetInt("PlayerGold", totalGold + goldCollectedThisRun);
+        totalGold += goldCollectedThisRun;
+        PlayerPrefs.SetInt("PlayerGold", totalGold);
         PlayerPrefs.Save();
 
-        Debug.Log($"Player Died! Collected Gold: {goldCollectedThisRun}. Total Gold: {totalGold + goldCollectedThisRun}");
+        Debug.Log($"Player Died! Collected Gold: {goldCollectedThisRun}. Total Gold: {totalGold}");
 
-        // 2. Return to main menu and pause the game
-        ReturnToMainMenu();
+        // 2. Pause the game and free the cursor so the player can click the results screen
+        Time.timeScale = 0f;
+        Cursor.lockState = CursorLockMode.None;
+        Cursor.visible = true;
+
+        // 3. Stop spawning and clear the remaining enemies
+        if (enemySpawner != null)
+        {
+            enemySpawner.isSpawning = false;
+            enemySpawner.ClearAllEnemies();
+        }
+
+        // 4. Show the results screen. Its \"Continue\" button calls ReturnToMainMenu().
+        float survivalTime = gameTimer != null ? gameTimer.GetElapsedTime() : 0f;
+        if (UIManager.Instance != null)
+        {
+            UIManager.Instance.ShowDeathScreen(goldCollectedThisRun, totalGold, survivalTime);
+        }
+        else
+        {
+            // No UI available - fall back to going straight to the menu.
+            ReturnToMainMenu();
+        }
     }
 
-    public void ReturnToMainMenu()
+public void ReturnToMainMenu()
     {
         // Pause time Scale
         Time.timeScale = 0f;
@@ -166,8 +191,9 @@ public class GameManager : MonoBehaviour
         if (UIManager.Instance != null)
         {
             UIManager.Instance.SetStatsPanelActive(true);
+            UIManager.Instance.HideDeathScreen();
         }
-        
+
         if (gameplayHUDObjects != null)
         {
             foreach (GameObject hudObj in gameplayHUDObjects)
@@ -177,5 +203,54 @@ public class GameManager : MonoBehaviour
         }
 
         // Reset shop UI if opened (ShopManager handles this via close button)
+    }
+
+
+// Styles the PLAY and SHOP buttons to match the rest of the UI.
+    private void StyleMenuButtons()
+    {
+        StyleMenuButton(playButton, "PLAY", UITheme.Affordable); // green = go
+        StyleMenuButton(marketButton, "SHOP", UITheme.Gold);     // gold = spend
+    }
+
+    private void StyleMenuButton(GameObject buttonObj, string label, Color accent)
+    {
+        if (buttonObj == null) return;
+
+        UnityEngine.UI.Image img = buttonObj.GetComponent<UnityEngine.UI.Image>();
+        UnityEngine.UI.Button btn = buttonObj.GetComponent<UnityEngine.UI.Button>();
+        if (img != null) UIStyle.ApplyPanel(img, Color.white); // rounded; ColorBlock tints it
+        if (btn != null)
+        {
+            btn.transition = UnityEngine.UI.Selectable.Transition.ColorTint;
+            btn.targetGraphic = img;
+            UnityEngine.UI.ColorBlock cb = btn.colors;
+            cb.normalColor = UITheme.Card;
+            cb.highlightedColor = Color.Lerp(UITheme.Card, accent, 0.5f);
+            cb.pressedColor = Color.Lerp(UITheme.Card, accent, 0.7f);
+            cb.selectedColor = UITheme.Card;
+            cb.fadeDuration = 0.1f;
+            btn.colors = cb;
+        }
+
+        // Label: prefer TextMeshPro, fall back to legacy UI Text.
+        TMPro.TextMeshProUGUI tmp = buttonObj.GetComponentInChildren<TMPro.TextMeshProUGUI>();
+        if (tmp != null)
+        {
+            tmp.text = label;
+            tmp.color = accent;
+            tmp.fontStyle = TMPro.FontStyles.Bold | TMPro.FontStyles.UpperCase;
+            tmp.characterSpacing = 6f;
+        }
+        else
+        {
+            UnityEngine.UI.Text legacy = buttonObj.GetComponentInChildren<UnityEngine.UI.Text>();
+            if (legacy != null)
+            {
+                legacy.text = label.ToUpper();
+                legacy.color = accent;
+                legacy.fontStyle = FontStyle.Bold;
+            }
+        }
     }
 }
