@@ -295,6 +295,15 @@ public class EnemySpawner : MonoBehaviour
 
         EnemySimpleAI enemyAI = enemyInstance.GetComponent<EnemySimpleAI>();
 
+        ArcherEnemyAI archerAI = enemyInstance.GetComponent<ArcherEnemyAI>();
+
+        if (archerAI != null)
+        {
+            archerAI.moveSpeed *= speedScale;
+
+            archerAI.projectileDamage = Mathf.Round(archerAI.projectileDamage * damageScale);
+        }
+
         if (enemyAI != null)
         {
             enemyAI.speed *= speedScale;
@@ -325,6 +334,17 @@ public class EnemySpawner : MonoBehaviour
         }
 
         EnemySimpleAI enemyAI = enemyInstance.GetComponent<EnemySimpleAI>();
+
+        ArcherEnemyAI archerAI = enemyInstance.GetComponent<ArcherEnemyAI>();
+
+        if (archerAI != null)
+        {
+            archerAI.moveSpeed *= eliteSpeedMultiplier;
+
+            archerAI.projectileDamage = Mathf.Round(
+                archerAI.projectileDamage * eliteDamageMultiplier
+            );
+        }
 
         if (enemyAI != null)
         {
