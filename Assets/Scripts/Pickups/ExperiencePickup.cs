@@ -3,20 +3,34 @@ using UnityEngine;
 public class ExperiencePickup : MonoBehaviour
 {
     [Header("Experience")]
-    [SerializeField] private float experienceAmount = 10f;
+    [SerializeField]
+    private float experienceAmount = 10f;
 
     [Header("Attraction")]
-    [SerializeField] private float attractionRadius = 4.5f;
-    [SerializeField] private float collectionRadius = 0.6f;
-    [SerializeField] private float maximumMoveSpeed = 12f;
-    [SerializeField] private float acceleration = 25f;
-    [SerializeField] private float playerHeightOffset = 0.8f;
+    [SerializeField]
+    private float collectionRadius = 0.6f;
+
+    [SerializeField]
+    private float maximumMoveSpeed = 12f;
+
+    [SerializeField]
+    private float acceleration = 25f;
+
+    [SerializeField]
+    private float playerHeightOffset = 0.8f;
 
     [Header("Visual")]
-    [SerializeField] private Transform visual;
-    [SerializeField] private float rotationSpeed = 140f;
-    [SerializeField] private float bobHeight = 0.12f;
-    [SerializeField] private float bobSpeed = 3f;
+    [SerializeField]
+    private Transform visual;
+
+    [SerializeField]
+    private float rotationSpeed = 140f;
+
+    [SerializeField]
+    private float bobHeight = 0.12f;
+
+    [SerializeField]
+    private float bobSpeed = 3f;
 
     private PlayerStats playerStats;
     private Vector3 visualStartPosition;
@@ -56,11 +70,9 @@ public class ExperiencePickup : MonoBehaviour
 
     private void MoveTowardsPlayer()
     {
-        Vector3 targetPosition =
-            playerStats.transform.position + Vector3.up * playerHeightOffset;
+        Vector3 targetPosition = playerStats.transform.position + Vector3.up * playerHeightOffset;
 
-        float distanceToPlayer =
-            Vector3.Distance(transform.position, targetPosition);
+        float distanceToPlayer = Vector3.Distance(transform.position, targetPosition);
 
         if (distanceToPlayer <= collectionRadius)
         {
@@ -68,7 +80,7 @@ public class ExperiencePickup : MonoBehaviour
             return;
         }
 
-        if (distanceToPlayer > attractionRadius)
+        if (distanceToPlayer > playerStats.XPPickupRange)
         {
             currentMoveSpeed = 0f;
             return;
@@ -105,21 +117,15 @@ public class ExperiencePickup : MonoBehaviour
     {
         Transform rotatingTransform = visual != null ? visual : transform;
 
-        rotatingTransform.Rotate(
-            Vector3.up,
-            rotationSpeed * Time.deltaTime,
-            Space.World
-        );
+        rotatingTransform.Rotate(Vector3.up, rotationSpeed * Time.deltaTime, Space.World);
 
         if (visual == null)
         {
             return;
         }
 
-        float verticalOffset =
-            Mathf.Sin(Time.time * bobSpeed) * bobHeight;
+        float verticalOffset = Mathf.Sin(Time.time * bobSpeed) * bobHeight;
 
-        visual.localPosition =
-            visualStartPosition + Vector3.up * verticalOffset;
+        visual.localPosition = visualStartPosition + Vector3.up * verticalOffset;
     }
 }

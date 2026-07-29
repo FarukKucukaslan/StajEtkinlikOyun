@@ -1,8 +1,8 @@
 using System.Collections.Generic;
 using System.Text.RegularExpressions;
+using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
-using TMPro;
 
 public class UIManager : MonoBehaviour
 {
@@ -17,7 +17,8 @@ public class UIManager : MonoBehaviour
         PierceCount,
         Defense,
         SearchRange,
-        ProjectileSpeed
+        ProjectileSpeed,
+        XPMagnet,
     }
 
     [System.Serializable]
@@ -31,7 +32,9 @@ public class UIManager : MonoBehaviour
     }
 
     [Header("Player Reference")]
-    [Tooltip("Reference to the PlayerStats script. If left empty, it will auto-detect from the GameObject tagged 'Player'.")]
+    [Tooltip(
+        "Reference to the PlayerStats script. If left empty, it will auto-detect from the GameObject tagged 'Player'."
+    )]
     public PlayerStats playerStats;
 
     [Header("Health UI (Bottom Left)")]
@@ -69,6 +72,7 @@ public class UIManager : MonoBehaviour
     [Header("UI Visual Polish")]
     [Tooltip("If checked, UI bars will smoothly slide to the target value instead of snapping.")]
     public bool smoothTransition = true;
+
     [Tooltip("Speed of the smooth slider transitions.")]
     public float smoothSpeed = 10f;
 
@@ -83,33 +87,113 @@ public class UIManager : MonoBehaviour
     private TextMeshProUGUI _deathStatsText;
 
     // Level-up extras (all built once in StyleLevelUpCards, then reused)
-    private GameObject _levelUpDim;        // full-screen dark overlay behind the panel
+    private GameObject _levelUpDim; // full-screen dark overlay behind the panel
     private Button _rerollButton;
     private TextMeshProUGUI _rerollLabel;
     private int _rerollsLeft;
 
     // Numbers in perk text (e.g. "+15%", "-0.2s", "8") get highlighted gold.
-    private static readonly Regex _numberRegex = new Regex(@"[+\-]?\d+(?:\.\d+)?(?:%|s)?", RegexOptions.Compiled);
+    private static readonly Regex _numberRegex = new Regex(
+        @"[+\-]?\d+(?:\.\d+)?(?:%|s)?",
+        RegexOptions.Compiled
+    );
 
+    private const float XPPickupRangeMultiplier = 1.3f;
 
-    // Available upgrades pool with weights (Total: 10 options)
+    // Available upgrades pool with weights (Total: 11 options)
     private readonly List<UpgradeOption> _availableUpgrades = new List<UpgradeOption>()
     {
         // COMMON (Weight: 80)
-        new UpgradeOption { type = UpgradeType.MoveSpeed, title = "Speed Boost", description = "Increase movement speed by 15% (+1.0 speed).", weight = 80, rarity = "Common" },
-        new UpgradeOption { type = UpgradeType.MaxHealth, title = "Vitality", description = "Increase maximum health by 20 and heal fully.", weight = 80, rarity = "Common" },
-        new UpgradeOption { type = UpgradeType.AttackSpeed, title = "Fast Hands", description = "Throw swords 15% faster (-0.2s cooldown).", weight = 80, rarity = "Common" },
-        new UpgradeOption { type = UpgradeType.SearchRange, title = "Eagle Eye", description = "Increase sword target search range by 25% (+4.0 range).", weight = 80, rarity = "Common" },
-        new UpgradeOption { type = UpgradeType.ProjectileSpeed, title = "Swift Blades", description = "Swords travel 30% faster (+5.0 projectile speed).", weight = 80, rarity = "Common" },
-        
+        new UpgradeOption
+        {
+            type = UpgradeType.MoveSpeed,
+            title = "Speed Boost",
+            description = "Increase movement speed by 15% (+1.0 speed).",
+            weight = 80,
+            rarity = "Common",
+        },
+        new UpgradeOption
+        {
+            type = UpgradeType.MaxHealth,
+            title = "Vitality",
+            description = "Increase maximum health by 20 and heal fully.",
+            weight = 80,
+            rarity = "Common",
+        },
+        new UpgradeOption
+        {
+            type = UpgradeType.AttackSpeed,
+            title = "Fast Hands",
+            description = "Throw swords 15% faster (-0.2s cooldown).",
+            weight = 80,
+            rarity = "Common",
+        },
+        new UpgradeOption
+        {
+            type = UpgradeType.SearchRange,
+            title = "Eagle Eye",
+            description = "Increase sword target search range by 25% (+4.0 range).",
+            weight = 80,
+            rarity = "Common",
+        },
+        new UpgradeOption
+        {
+            type = UpgradeType.ProjectileSpeed,
+            title = "Swift Blades",
+            description = "Swords travel 30% faster (+5.0 projectile speed).",
+            weight = 80,
+            rarity = "Common",
+        },
+        new UpgradeOption
+        {
+            type = UpgradeType.XPMagnet,
+            title = "Crystal Magnet",
+            description = "Increase XP crystal pickup range by 30%.",
+            weight = 80,
+            rarity = "Common",
+        },
         // RARE (Weight: 30)
-        new UpgradeOption { type = UpgradeType.SwordDamage, title = "Sharp Blade", description = "Increase sword damage by 8 points.", weight = 30, rarity = "Rare" },
-        new UpgradeOption { type = UpgradeType.FirstAid, title = "First Aid", description = "Heal to full health instantly.", weight = 30, rarity = "Rare" },
-        new UpgradeOption { type = UpgradeType.Defense, title = "Heavy Armor", description = "Reduce incoming damage from all enemies by 2 points.", weight = 30, rarity = "Rare" },
-        
+        new UpgradeOption
+        {
+            type = UpgradeType.SwordDamage,
+            title = "Sharp Blade",
+            description = "Increase sword damage by 8 points.",
+            weight = 30,
+            rarity = "Rare",
+        },
+        new UpgradeOption
+        {
+            type = UpgradeType.FirstAid,
+            title = "First Aid",
+            description = "Heal to full health instantly.",
+            weight = 30,
+            rarity = "Rare",
+        },
+        new UpgradeOption
+        {
+            type = UpgradeType.Defense,
+            title = "Heavy Armor",
+            description = "Reduce incoming damage from all enemies by 2 points.",
+            weight = 30,
+            rarity = "Rare",
+        },
         // EPIC (Weight: 10)
-        new UpgradeOption { type = UpgradeType.SwordCount, title = "Multi-Throw", description = "Throw one additional sword at nearest enemies.", weight = 10, rarity = "Epic" },
-        new UpgradeOption { type = UpgradeType.PierceCount, title = "Piercing Edge", description = "Swords pass through one more enemy.", weight = 10, rarity = "Epic" }
+        new UpgradeOption
+        {
+            type = UpgradeType.SwordCount,
+            title = "Multi-Throw",
+            description = "Throw one additional sword at nearest enemies.",
+            weight = 10,
+            rarity = "Epic",
+        },
+        new UpgradeOption
+        {
+            type = UpgradeType.PierceCount,
+            title = "Piercing Edge",
+            description = "Swords pass through one more enemy.",
+            weight = 10,
+            rarity = "Epic",
+        },
     };
 
     public static UIManager Instance { get; private set; }
@@ -129,7 +213,7 @@ public class UIManager : MonoBehaviour
         CreateStatsPanel();
     }
 
-private void Start()
+    private void Start()
     {
         // Hide only the level up selection box initially
         if (levelUpPanel != null)
@@ -195,11 +279,19 @@ private void Start()
         {
             if (healthSlider != null)
             {
-                healthSlider.value = Mathf.Lerp(healthSlider.value, _targetHealthPct, Time.unscaledDeltaTime * smoothSpeed);
+                healthSlider.value = Mathf.Lerp(
+                    healthSlider.value,
+                    _targetHealthPct,
+                    Time.unscaledDeltaTime * smoothSpeed
+                );
             }
             if (xpSlider != null)
             {
-                xpSlider.value = Mathf.Lerp(xpSlider.value, _targetXPPct, Time.unscaledDeltaTime * smoothSpeed);
+                xpSlider.value = Mathf.Lerp(
+                    xpSlider.value,
+                    _targetXPPct,
+                    Time.unscaledDeltaTime * smoothSpeed
+                );
             }
         }
     }
@@ -233,7 +325,7 @@ private void Start()
     }
 
     // --- HUD bar sizing/position knobs (tweak these to move/resize the bars) ---
-    private const int BarSegments = 10;                                  // notch count on both bars
+    private const int BarSegments = 10; // notch count on both bars
 
     // Health bar (Megabonk-style): compact red bar top-left, value text centered on it,
     // sitting just under the XP strip.
@@ -245,7 +337,7 @@ private void Start()
             rt.anchorMin = new Vector2(0f, 1f);
             rt.anchorMax = new Vector2(0f, 1f);
             rt.pivot = new Vector2(0f, 1f);
-            rt.sizeDelta = new Vector2(360f, 80f);        // big & bulky
+            rt.sizeDelta = new Vector2(360f, 80f); // big & bulky
             rt.anchoredPosition = new Vector2(24f, -100f); // top-left, clears the 88px XP strip with a gap
         }
 
@@ -280,8 +372,8 @@ private void Start()
             rt.anchorMin = new Vector2(0f, 1f);
             rt.anchorMax = new Vector2(1f, 1f);
             rt.pivot = new Vector2(0.5f, 1f);
-            rt.sizeDelta = new Vector2(0f, 84f);          // full width, tall, covers the top
-            rt.anchoredPosition = new Vector2(0f, 20f);   // bleed 20px above the top edge so no game world shows in the gap
+            rt.sizeDelta = new Vector2(0f, 84f); // full width, tall, covers the top
+            rt.anchoredPosition = new Vector2(0f, 20f); // bleed 20px above the top edge so no game world shows in the gap
 
             // Unity's default Slider insets both the track (Background) and the
             // coloured fill (Fill Area) to the middle 50% of the bar's height
@@ -289,7 +381,9 @@ private void Start()
             // full bar so the track and fill fill it edge-to-edge and reach the
             // very top. Horizontal size of the fill is still driven by the slider
             // value, so we only override the vertical anchors/offsets on it.
-            StretchFull(xpSlider.fillRect != null ? xpSlider.fillRect.parent as RectTransform : null);
+            StretchFull(
+                xpSlider.fillRect != null ? xpSlider.fillRect.parent as RectTransform : null
+            );
             StretchFull(GetSliderBackground(xpSlider));
         }
 
@@ -299,7 +393,8 @@ private void Start()
     // Anchors a RectTransform to fill its parent completely (no padding).
     private void StretchFull(RectTransform rt)
     {
-        if (rt == null) return;
+        if (rt == null)
+            return;
         rt.anchorMin = Vector2.zero;
         rt.anchorMax = Vector2.one;
         rt.offsetMin = Vector2.zero;
@@ -310,7 +405,8 @@ private void Start()
     // slider layout). Returns its RectTransform, or null if it isn't there.
     private RectTransform GetSliderBackground(Slider s)
     {
-        if (s == null) return null;
+        if (s == null)
+            return null;
         Transform bg = s.transform.Find("Background");
         return bg as RectTransform;
     }
@@ -320,7 +416,8 @@ private void Start()
     // the fill Image so the caller can recolor it.
     private Image StyleSliderChrome(Slider s, Color fillColor, bool segmented, bool rounded = true)
     {
-        if (s == null) return null;
+        if (s == null)
+            return null;
 
         Color track = new Color(0.10f, 0.13f, 0.22f, 1f); // dark blue-grey: empty bar still reads as a bar, not a black slab
 
@@ -334,11 +431,14 @@ private void Start()
         foreach (Image img in s.GetComponentsInChildren<Image>(true))
         {
             Color c = img == fill ? fillColor : track;
-            if (rounded) UIStyle.ApplyPanel(img, c);
-            else UIStyle.ApplyFlat(img, c);
+            if (rounded)
+                UIStyle.ApplyPanel(img, c);
+            else
+                UIStyle.ApplyFlat(img, c);
         }
 
-        if (segmented) AddSegments(s.GetComponent<RectTransform>(), BarSegments, new Color(0f, 0f, 0f, 0.45f));
+        if (segmented)
+            AddSegments(s.GetComponent<RectTransform>(), BarSegments, new Color(0f, 0f, 0f, 0.45f));
         return fill;
     }
 
@@ -346,8 +446,10 @@ private void Start()
     // chunky segmented look. The lines are fixed; the fill slides underneath them.
     private void AddSegments(RectTransform bar, int count, Color color)
     {
-        if (bar == null || count < 2) return;
-        if (bar.Find("__Segments") != null) return; // built once
+        if (bar == null || count < 2)
+            return;
+        if (bar.Find("__Segments") != null)
+            return; // built once
 
         GameObject container = new GameObject("__Segments", typeof(RectTransform));
         RectTransform crt = container.GetComponent<RectTransform>();
@@ -360,7 +462,12 @@ private void Start()
         for (int i = 1; i < count; i++)
         {
             float f = (float)i / count;
-            GameObject line = new GameObject("seg" + i, typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+            GameObject line = new GameObject(
+                "seg" + i,
+                typeof(RectTransform),
+                typeof(CanvasRenderer),
+                typeof(Image)
+            );
             RectTransform lrt = line.GetComponent<RectTransform>();
             lrt.SetParent(crt, false);
             lrt.anchorMin = new Vector2(f, 0.12f);
@@ -405,17 +512,23 @@ private void Start()
 
     private void SetLevelUpUIActive(bool active)
     {
-        if (_levelUpDim != null) _levelUpDim.SetActive(active);
-        if (levelUpPanel != null) levelUpPanel.SetActive(active);
-        if (_statsPanelObj != null) _statsPanelObj.SetActive(active);
+        if (_levelUpDim != null)
+            _levelUpDim.SetActive(active);
+        if (levelUpPanel != null)
+            levelUpPanel.SetActive(active);
+        if (_statsPanelObj != null)
+            _statsPanelObj.SetActive(active);
 
         // When showing, stack draw order so the dim sits over the HUD but the
         // panel and stats sit over the dim (last sibling = drawn on top).
         if (active)
         {
-            if (_levelUpDim != null) _levelUpDim.transform.SetAsLastSibling();
-            if (_statsPanelObj != null) _statsPanelObj.transform.SetAsLastSibling();
-            if (levelUpPanel != null) levelUpPanel.transform.SetAsLastSibling();
+            if (_levelUpDim != null)
+                _levelUpDim.transform.SetAsLastSibling();
+            if (_statsPanelObj != null)
+                _statsPanelObj.transform.SetAsLastSibling();
+            if (levelUpPanel != null)
+                levelUpPanel.transform.SetAsLastSibling();
         }
     }
 
@@ -433,10 +546,16 @@ private void Start()
 
     private void CreateStatsPanel()
     {
-        if (levelUpPanel == null) return;
+        if (levelUpPanel == null)
+            return;
 
         // 1. Create panel GameObject
-        GameObject statsPanel = new GameObject("StatsPanel", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+        GameObject statsPanel = new GameObject(
+            "StatsPanel",
+            typeof(RectTransform),
+            typeof(CanvasRenderer),
+            typeof(Image)
+        );
         statsPanel.transform.SetParent(levelUpPanel.transform.parent, false); // Sibling of levelUpPanel under Canvas
         _statsPanelObj = statsPanel;
 
@@ -453,7 +572,12 @@ private void Start()
         panelImage.color = new Color(0.12f, 0.12f, 0.14f, 0.92f); // Charcoal dark background
 
         // 2. Create Title Text
-        GameObject titleObj = new GameObject("StatsTitleText", typeof(RectTransform), typeof(CanvasRenderer), typeof(TextMeshProUGUI));
+        GameObject titleObj = new GameObject(
+            "StatsTitleText",
+            typeof(RectTransform),
+            typeof(CanvasRenderer),
+            typeof(TextMeshProUGUI)
+        );
         titleObj.transform.SetParent(statsPanel.transform, false);
 
         RectTransform titleRt = titleObj.GetComponent<RectTransform>();
@@ -470,7 +594,12 @@ private void Start()
         titleText.alignment = TextAlignmentOptions.Center;
 
         // 3. Create Content Text
-        GameObject contentObj = new GameObject("StatsContentText", typeof(RectTransform), typeof(CanvasRenderer), typeof(TextMeshProUGUI));
+        GameObject contentObj = new GameObject(
+            "StatsContentText",
+            typeof(RectTransform),
+            typeof(CanvasRenderer),
+            typeof(TextMeshProUGUI)
+        );
         contentObj.transform.SetParent(statsPanel.transform, false);
 
         RectTransform contentRt = contentObj.GetComponent<RectTransform>();
@@ -491,14 +620,16 @@ private void Start()
 
     private void UpdateStatsPanelText()
     {
-        if (playerStats == null || _statsContentText == null) return;
+        if (playerStats == null || _statsContentText == null)
+            return;
 
         float maxHp = playerStats.maxHealth;
         float armor = playerStats.armor;
 
         float speed = 0f;
         PlayerController pc = playerStats.GetComponent<PlayerController>();
-        if (pc != null) speed = pc.moveSpeed;
+        if (pc != null)
+            speed = pc.moveSpeed;
 
         float damage = 0f;
         float cooldown = 0f;
@@ -527,14 +658,16 @@ private void Start()
         sb.AppendLine($"Sword Count <pos=70%>{count}");
         sb.AppendLine($"Pierce <pos=70%>{pierce}");
         sb.AppendLine($"Search Range <pos=70%>{range:F1}");
+        sb.AppendLine($"XP Pickup Range <pos=70%>{playerStats.XPPickupRange:F1}");
         sb.AppendLine($"Projectile Speed <pos=70%>{projSpeed:F1} m/s");
 
         _statsContentText.text = sb.ToString();
     }
 
-private void OpenLevelUpSelection()
+    private void OpenLevelUpSelection()
     {
-        if (levelUpPanel == null) return;
+        if (levelUpPanel == null)
+            return;
 
         // Refresh stats panel details
         UpdateStatsPanelText();
@@ -569,7 +702,8 @@ private void OpenLevelUpSelection()
     // Reroll button: swaps the three options for a new random set, one use per press.
     private void DoReroll()
     {
-        if (_rerollsLeft <= 0) return;
+        if (_rerollsLeft <= 0)
+            return;
         _rerollsLeft--;
         PopulateOptions();
         UpdateRerollLabel();
@@ -578,13 +712,15 @@ private void OpenLevelUpSelection()
     // Updates the reroll button's label ("REROLL (n)") and disables it at zero.
     private void UpdateRerollLabel()
     {
-        if (_rerollLabel != null) _rerollLabel.text = $"REROLL ({_rerollsLeft})";
-        if (_rerollButton != null) _rerollButton.interactable = _rerollsLeft > 0;
+        if (_rerollLabel != null)
+            _rerollLabel.text = $"REROLL ({_rerollsLeft})";
+        if (_rerollButton != null)
+            _rerollButton.interactable = _rerollsLeft > 0;
     }
 
-// Fills one upgrade card with an option and color-codes it by rarity.
-// Fills one upgrade card with an option and color-codes it by rarity.
-// Fills one upgrade card with an option: color-codes by rarity and shows its icon.
+    // Fills one upgrade card with an option and color-codes it by rarity.
+    // Fills one upgrade card with an option and color-codes it by rarity.
+    // Fills one upgrade card with an option: color-codes by rarity and shows its icon.
     private void Bind(Button btn, TextMeshProUGUI title, TextMeshProUGUI desc, UpgradeOption opt)
     {
         Color rarity = UITheme.Rarity(opt.rarity);
@@ -640,7 +776,6 @@ private void OpenLevelUpSelection()
         btn.onClick.AddListener(() => SelectUpgrade(captured));
     }
 
-
     // Weighted random selection algorithm to pick 'count' unique options
     private List<UpgradeOption> PickRandomUpgrades(int count)
     {
@@ -649,7 +784,8 @@ private void OpenLevelUpSelection()
 
         for (int i = 0; i < count; i++)
         {
-            if (pool.Count == 0) break;
+            if (pool.Count == 0)
+                break;
 
             int totalWeight = 0;
             foreach (var opt in pool)
@@ -657,7 +793,8 @@ private void OpenLevelUpSelection()
                 totalWeight += opt.weight;
             }
 
-            if (totalWeight <= 0) break;
+            if (totalWeight <= 0)
+                break;
 
             // Pick a weighted random value
             int randVal = Random.Range(0, totalWeight);
@@ -685,7 +822,8 @@ private void OpenLevelUpSelection()
     // the actual effect stands out from the surrounding words.
     private string HighlightNumbers(string text)
     {
-        if (string.IsNullOrEmpty(text)) return text;
+        if (string.IsNullOrEmpty(text))
+            return text;
         string hex = ColorUtility.ToHtmlStringRGB(UITheme.Gold);
         return _numberRegex.Replace(text, m => $"<b><color=#{hex}>{m.Value}</color></b>");
     }
@@ -694,47 +832,63 @@ private void OpenLevelUpSelection()
     // player's live stats. Returns "" when there is no player (e.g. main menu).
     private string GetUpgradePreview(UpgradeType type)
     {
-        if (playerStats == null) return "";
+        if (playerStats == null)
+            return "";
         PlayerController pc = playerStats.GetComponent<PlayerController>();
         SwordThrower st = playerStats.GetComponent<SwordThrower>();
 
         switch (type)
         {
             case UpgradeType.MoveSpeed:
-                if (pc == null) return "";
+                if (pc == null)
+                    return "";
                 return $"{pc.moveSpeed:F1} -> {pc.moveSpeed + 1f:F1} spd";
             case UpgradeType.MaxHealth:
                 return $"{playerStats.maxHealth:F0} -> {playerStats.maxHealth + 20f:F0} HP";
             case UpgradeType.AttackSpeed:
-                if (st == null) return "";
+                if (st == null)
+                    return "";
                 return $"{st.throwCooldown:F2}s -> {Mathf.Max(0.2f, st.throwCooldown - 0.2f):F2}s";
             case UpgradeType.SwordDamage:
-                if (st == null) return "";
+                if (st == null)
+                    return "";
                 return $"{st.swordDamage:F0} -> {st.swordDamage + 8f:F0} dmg";
             case UpgradeType.FirstAid:
                 return "Full heal";
             case UpgradeType.SwordCount:
-                if (st == null) return "";
+                if (st == null)
+                    return "";
                 return $"{st.swordCount} -> {st.swordCount + 1} swords";
             case UpgradeType.PierceCount:
-                if (st == null) return "";
+                if (st == null)
+                    return "";
                 return $"{st.pierceCount} -> {st.pierceCount + 1} pierce";
             case UpgradeType.Defense:
                 return $"{playerStats.armor:F0} -> {playerStats.armor + 2f:F0} armor";
             case UpgradeType.SearchRange:
-                if (st == null) return "";
+                if (st == null)
+                    return "";
                 return $"{st.searchRange:F0} -> {st.searchRange + 4f:F0} range";
             case UpgradeType.ProjectileSpeed:
-                if (st == null) return "";
-                return $"{st.projectileSpeed:F0} -> {st.projectileSpeed + 5f:F0} spd";
+                if (st == null)
+                {
+                    return "";
+                }
+
+                return $"{st.projectileSpeed:F0} -> " + $"{st.projectileSpeed + 5f:F0} spd";
+
+            case UpgradeType.XPMagnet:
+                float nextPickupRange = playerStats.GetNextXPPickupRange(XPPickupRangeMultiplier);
+
+                return $"{playerStats.XPPickupRange:F1} -> " + $"{nextPickupRange:F1} range";
         }
         return "";
     }
 
-
     private void SelectUpgrade(UpgradeOption option)
     {
-        if (playerStats == null) return;
+        if (playerStats == null)
+            return;
 
         // Apply the chosen upgrade to the player
         switch (option.type)
@@ -802,10 +956,15 @@ private void OpenLevelUpSelection()
 
             case UpgradeType.ProjectileSpeed:
                 SwordThrower speedThrower = playerStats.GetComponent<SwordThrower>();
+
                 if (speedThrower != null)
                 {
-                    speedThrower.projectileSpeed += 5f; // Projectile speed +5
+                    speedThrower.projectileSpeed += 5f;
                 }
+                break;
+
+            case UpgradeType.XPMagnet:
+                playerStats.IncreaseXPPickupRange(XPPickupRangeMultiplier);
                 break;
         }
 
@@ -818,12 +977,13 @@ private void OpenLevelUpSelection()
         Debug.Log($"Applied Upgrade: {option.title}");
     }
 
-
-// Shows the end-of-run results screen. Builds it the first time, then reuses it.
+    // Shows the end-of-run results screen. Builds it the first time, then reuses it.
     public void ShowDeathScreen(int goldThisRun, int totalGold, float survivalSeconds)
     {
-        if (_deathScreenObj == null) CreateDeathScreen();
-        if (_deathScreenObj == null) return;
+        if (_deathScreenObj == null)
+            CreateDeathScreen();
+        if (_deathScreenObj == null)
+            return;
 
         int minutes = (int)(survivalSeconds / 60f);
         int seconds = (int)(survivalSeconds % 60f);
@@ -831,9 +991,9 @@ private void OpenLevelUpSelection()
         if (_deathStatsText != null)
         {
             _deathStatsText.text =
-                $"Time Survived: {minutes:00}:{seconds:00}\n" +
-                $"Gold This Run: {goldThisRun}\n" +
-                $"Total Gold: {totalGold}";
+                $"Time Survived: {minutes:00}:{seconds:00}\n"
+                + $"Gold This Run: {goldThisRun}\n"
+                + $"Total Gold: {totalGold}";
         }
 
         _deathScreenObj.SetActive(true);
@@ -853,7 +1013,12 @@ private void OpenLevelUpSelection()
     private void CreateDeathScreen()
     {
         // Full-screen dim overlay (also blocks clicks on the game behind it)
-        GameObject overlay = new GameObject("DeathScreen", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+        GameObject overlay = new GameObject(
+            "DeathScreen",
+            typeof(RectTransform),
+            typeof(CanvasRenderer),
+            typeof(Image)
+        );
         overlay.transform.SetParent(transform, false);
         RectTransform overlayRt = overlay.GetComponent<RectTransform>();
         overlayRt.anchorMin = Vector2.zero;
@@ -864,7 +1029,12 @@ private void OpenLevelUpSelection()
         _deathScreenObj = overlay;
 
         // Centered results panel
-        GameObject panel = new GameObject("DeathPanel", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+        GameObject panel = new GameObject(
+            "DeathPanel",
+            typeof(RectTransform),
+            typeof(CanvasRenderer),
+            typeof(Image)
+        );
         panel.transform.SetParent(overlay.transform, false);
         RectTransform panelRt = panel.GetComponent<RectTransform>();
         panelRt.anchorMin = new Vector2(0.5f, 0.5f);
@@ -875,7 +1045,12 @@ private void OpenLevelUpSelection()
         panel.GetComponent<Image>().color = new Color(0.12f, 0.12f, 0.14f, 0.98f);
 
         // Title: \"YOU DIED\"
-        GameObject titleObj = new GameObject("DeathTitle", typeof(RectTransform), typeof(CanvasRenderer), typeof(TextMeshProUGUI));
+        GameObject titleObj = new GameObject(
+            "DeathTitle",
+            typeof(RectTransform),
+            typeof(CanvasRenderer),
+            typeof(TextMeshProUGUI)
+        );
         titleObj.transform.SetParent(panel.transform, false);
         RectTransform titleRt = titleObj.GetComponent<RectTransform>();
         titleRt.anchorMin = new Vector2(0f, 0.72f);
@@ -890,7 +1065,12 @@ private void OpenLevelUpSelection()
         title.alignment = TextAlignmentOptions.Center;
 
         // Run stats text
-        GameObject statsObj = new GameObject("DeathStats", typeof(RectTransform), typeof(CanvasRenderer), typeof(TextMeshProUGUI));
+        GameObject statsObj = new GameObject(
+            "DeathStats",
+            typeof(RectTransform),
+            typeof(CanvasRenderer),
+            typeof(TextMeshProUGUI)
+        );
         statsObj.transform.SetParent(panel.transform, false);
         RectTransform statsRt = statsObj.GetComponent<RectTransform>();
         statsRt.anchorMin = new Vector2(0.1f, 0.3f);
@@ -904,7 +1084,13 @@ private void OpenLevelUpSelection()
         _deathStatsText.lineSpacing = 24f;
 
         // Continue button -> back to the main menu
-        GameObject btnObj = new GameObject("ContinueButton", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image), typeof(Button));
+        GameObject btnObj = new GameObject(
+            "ContinueButton",
+            typeof(RectTransform),
+            typeof(CanvasRenderer),
+            typeof(Image),
+            typeof(Button)
+        );
         btnObj.transform.SetParent(panel.transform, false);
         RectTransform btnRt = btnObj.GetComponent<RectTransform>();
         btnRt.anchorMin = new Vector2(0.25f, 0.08f);
@@ -912,16 +1098,23 @@ private void OpenLevelUpSelection()
         btnRt.offsetMin = Vector2.zero;
         btnRt.offsetMax = Vector2.zero;
         btnObj.GetComponent<Image>().color = new Color(0.86f, 0.15f, 0.15f, 1f);
-        btnObj.GetComponent<Button>().onClick.AddListener(() =>
-        {
-            if (GameManager.Instance != null)
+        btnObj
+            .GetComponent<Button>()
+            .onClick.AddListener(() =>
             {
-                GameManager.Instance.ReturnToMainMenu();
-            }
-        });
+                if (GameManager.Instance != null)
+                {
+                    GameManager.Instance.ReturnToMainMenu();
+                }
+            });
 
         // Continue button label
-        GameObject btnTextObj = new GameObject("Text", typeof(RectTransform), typeof(CanvasRenderer), typeof(TextMeshProUGUI));
+        GameObject btnTextObj = new GameObject(
+            "Text",
+            typeof(RectTransform),
+            typeof(CanvasRenderer),
+            typeof(TextMeshProUGUI)
+        );
         btnTextObj.transform.SetParent(btnObj.transform, false);
         RectTransform btnTextRt = btnTextObj.GetComponent<RectTransform>();
         btnTextRt.anchorMin = Vector2.zero;
@@ -938,12 +1131,12 @@ private void OpenLevelUpSelection()
         overlay.SetActive(false);
     }
 
-
-// One-time styling of the level-up card container and text.
-// One-time styling + layout of the level-up screen.
+    // One-time styling of the level-up card container and text.
+    // One-time styling + layout of the level-up screen.
     private void StyleLevelUpCards()
     {
-        if (levelUpPanel == null) return;
+        if (levelUpPanel == null)
+            return;
 
         // Compact, centered panel (was full-height and cramped against the timer).
         RectTransform panelRt = levelUpPanel.GetComponent<RectTransform>();
@@ -956,7 +1149,8 @@ private void OpenLevelUpSelection()
             panelRt.anchoredPosition = new Vector2(0f, -30f); // nudge below the timer
         }
         Image panelBg = levelUpPanel.GetComponent<Image>();
-        if (panelBg != null) UIStyle.ApplyPanel(panelBg, UITheme.PanelDark);
+        if (panelBg != null)
+            UIStyle.ApplyPanel(panelBg, UITheme.PanelDark);
 
         CreateBackgroundDim();
         CreateLevelUpHeader();
@@ -973,14 +1167,25 @@ private void OpenLevelUpSelection()
     // gameplay behind it stops competing for attention. Toggled in SetLevelUpUIActive.
     private void CreateBackgroundDim()
     {
-        if (levelUpPanel == null) return;
+        if (levelUpPanel == null)
+            return;
         Transform parent = levelUpPanel.transform.parent;
-        if (parent == null) return;
+        if (parent == null)
+            return;
 
         Transform existing = parent.Find("__LevelUpDim");
-        if (existing != null) { _levelUpDim = existing.gameObject; return; }
+        if (existing != null)
+        {
+            _levelUpDim = existing.gameObject;
+            return;
+        }
 
-        GameObject dim = new GameObject("__LevelUpDim", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+        GameObject dim = new GameObject(
+            "__LevelUpDim",
+            typeof(RectTransform),
+            typeof(CanvasRenderer),
+            typeof(Image)
+        );
         RectTransform rt = dim.GetComponent<RectTransform>();
         rt.SetParent(parent, false);
         rt.anchorMin = Vector2.zero;
@@ -995,7 +1200,8 @@ private void OpenLevelUpSelection()
     // "REROLL (n)" button at the bottom of the panel. Built once; DoReroll swaps the options.
     private void CreateRerollButton()
     {
-        if (levelUpPanel == null) return;
+        if (levelUpPanel == null)
+            return;
         if (levelUpPanel.transform.Find("__Reroll") != null)
         {
             _rerollButton = levelUpPanel.transform.Find("__Reroll").GetComponent<Button>();
@@ -1003,7 +1209,13 @@ private void OpenLevelUpSelection()
             return;
         }
 
-        GameObject go = new GameObject("__Reroll", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image), typeof(Button));
+        GameObject go = new GameObject(
+            "__Reroll",
+            typeof(RectTransform),
+            typeof(CanvasRenderer),
+            typeof(Image),
+            typeof(Button)
+        );
         RectTransform rt = go.GetComponent<RectTransform>();
         rt.SetParent(levelUpPanel.transform, false);
         rt.anchorMin = new Vector2(0.35f, 0.03f);
@@ -1026,7 +1238,12 @@ private void OpenLevelUpSelection()
         _rerollButton.colors = cb;
         _rerollButton.onClick.AddListener(DoReroll);
 
-        GameObject textObj = new GameObject("Text", typeof(RectTransform), typeof(CanvasRenderer), typeof(TextMeshProUGUI));
+        GameObject textObj = new GameObject(
+            "Text",
+            typeof(RectTransform),
+            typeof(CanvasRenderer),
+            typeof(TextMeshProUGUI)
+        );
         RectTransform trt = textObj.GetComponent<RectTransform>();
         trt.SetParent(rt, false);
         trt.anchorMin = Vector2.zero;
@@ -1045,14 +1262,13 @@ private void OpenLevelUpSelection()
 
     // Configures a card text field: wrapping, auto-size range, padding, alignment.
 
-
-
-// Positions and styles one upgrade card. Three tall cards side by side
-// (index 0 = left, 2 = right): rarity badge on top, title, then description.
-// Text-first layout (no icons in the project yet) so the perks stay readable.
+    // Positions and styles one upgrade card. Three tall cards side by side
+    // (index 0 = left, 2 = right): rarity badge on top, title, then description.
+    // Text-first layout (no icons in the project yet) so the perks stay readable.
     private void LayoutCard(Button btn, TextMeshProUGUI title, TextMeshProUGUI desc, int index)
     {
-        if (btn == null) return;
+        if (btn == null)
+            return;
 
         // Three equal columns spanning 0.04..0.96 with a gap between them.
         const float gap = 0.03f;
@@ -1060,7 +1276,7 @@ private void OpenLevelUpSelection()
         float left = 0.04f + index * (width + gap);
 
         RectTransform rt = btn.GetComponent<RectTransform>();
-        rt.anchorMin = new Vector2(left, 0.15f);          // header above (~0.82), reroll button below
+        rt.anchorMin = new Vector2(left, 0.15f); // header above (~0.82), reroll button below
         rt.anchorMax = new Vector2(left + width, 0.82f);
         rt.offsetMin = Vector2.zero;
         rt.offsetMax = Vector2.zero;
@@ -1124,9 +1340,15 @@ private void OpenLevelUpSelection()
     private TextMeshProUGUI GetOrCreateCardText(RectTransform parent, string childName)
     {
         Transform existing = parent.Find(childName);
-        if (existing != null) return existing.GetComponent<TextMeshProUGUI>();
+        if (existing != null)
+            return existing.GetComponent<TextMeshProUGUI>();
 
-        GameObject go = new GameObject(childName, typeof(RectTransform), typeof(CanvasRenderer), typeof(TextMeshProUGUI));
+        GameObject go = new GameObject(
+            childName,
+            typeof(RectTransform),
+            typeof(CanvasRenderer),
+            typeof(TextMeshProUGUI)
+        );
         go.GetComponent<RectTransform>().SetParent(parent, false);
         TextMeshProUGUI t = go.GetComponent<TextMeshProUGUI>();
         t.raycastTarget = false;
@@ -1136,10 +1358,17 @@ private void OpenLevelUpSelection()
     // Creates the "LEVEL UP" header at the top of the panel (once).
     private void CreateLevelUpHeader()
     {
-        if (levelUpPanel == null) return;
-        if (levelUpPanel.transform.Find("__Header") != null) return;
+        if (levelUpPanel == null)
+            return;
+        if (levelUpPanel.transform.Find("__Header") != null)
+            return;
 
-        GameObject headerObj = new GameObject("__Header", typeof(RectTransform), typeof(CanvasRenderer), typeof(TextMeshProUGUI));
+        GameObject headerObj = new GameObject(
+            "__Header",
+            typeof(RectTransform),
+            typeof(CanvasRenderer),
+            typeof(TextMeshProUGUI)
+        );
         RectTransform rt = headerObj.GetComponent<RectTransform>();
         rt.SetParent(levelUpPanel.transform, false);
         rt.anchorMin = new Vector2(0.05f, 0.86f);
