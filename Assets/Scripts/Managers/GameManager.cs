@@ -6,6 +6,7 @@ public class GameManager : MonoBehaviour
 
     [Header("Player References")]
     public GameObject playerObj;
+
     private PlayerStats _playerStats;
     private PlayerController _playerController;
     private SwordThrower _swordThrower;
@@ -17,7 +18,10 @@ public class GameManager : MonoBehaviour
     [Header("UI Controls")]
     public GameObject playButton;
     public GameObject marketButton;
-    [Tooltip("Drag all gameplay HUD elements (Sliders, Texts) here to turn them off during main menu.")]
+
+    [Tooltip(
+        "Drag all gameplay HUD elements (Sliders, Texts) here to turn them off during main menu."
+    )]
     public GameObject[] gameplayHUDObjects;
 
     private Vector3 _playerStartPos;
@@ -34,9 +38,9 @@ public class GameManager : MonoBehaviour
         }
     }
 
-private void Start()
+    private void Start()
     {
-        // Auto-find references if not assigned
+        // Auto-find references if not assigned.
         if (playerObj == null)
         {
             playerObj = GameObject.FindGameObjectWithTag("Player");
@@ -47,6 +51,7 @@ private void Start()
             _playerStats = playerObj.GetComponent<PlayerStats>();
             _playerController = playerObj.GetComponent<PlayerController>();
             _swordThrower = playerObj.GetComponent<SwordThrower>();
+
             _playerStartPos = playerObj.transform.position;
         }
 
@@ -63,131 +68,166 @@ private void Start()
         // Give the main-menu buttons the game's visual theme.
         StyleMenuButtons();
 
-        // Initialize state: Pause game and open Main Menu
+        // Initialize state: pause game and open main menu.
         ReturnToMainMenu();
     }
 
     public void StartGame()
     {
-        // 1. Reset player position
+        // 1. Reset player position.
         if (playerObj != null)
         {
-            // Temporarily disable CharacterController during teleport to avoid conflicts
-            CharacterController cc = playerObj.GetComponent<CharacterController>();
-            if (cc != null) cc.enabled = false;
-            
+            CharacterController characterController = playerObj.GetComponent<CharacterController>();
+
+            // CharacterController must be disabled while teleporting.
+            if (characterController != null)
+            {
+                characterController.enabled = false;
+            }
+
             playerObj.transform.position = _playerStartPos;
             playerObj.transform.rotation = Quaternion.identity;
-            
-            if (cc != null) cc.enabled = true;
+
+            if (characterController != null)
+            {
+                characterController.enabled = true;
+            }
         }
 
-        // 2. Load shop upgrades and reset player stats
+        // 2. Load shop upgrades and reset player stats.
         if (playerObj != null)
         {
-            // Call Start() manually or re-trigger loading of player/weapon stats
             playerObj.SendMessage("Start", SendMessageOptions.DontRequireReceiver);
         }
 
-        // 3. Reset UI and timer
+        // 3. Reset timer.
         if (gameTimer != null)
         {
             gameTimer.ResetTimer();
         }
 
-        // 4. Clear old enemies and enable spawner
+        // 4. Clear objects left from the previous run.
         if (enemySpawner != null)
         {
             enemySpawner.ClearAllEnemies();
+
+            enemySpawner.spawnInterval = 1.5f;
             enemySpawner.isSpawning = true;
-            
-            // Reset the spawner interval back to its baseline
-            // (The baseline is loaded in EnemySpawner's start, we can reset it)
-            enemySpawner.spawnInterval = 1.5f; 
         }
 
-        // 5. Hide main menu buttons & stats panel, show gameplay HUD elements
-        if (playButton != null) playButton.SetActive(false);
-        if (marketButton != null) marketButton.SetActive(false);
+        ClearExperiencePickups();
+
+        // 5. Hide main menu and show gameplay HUD.
+        if (playButton != null)
+        {
+            playButton.SetActive(false);
+        }
+
+        if (marketButton != null)
+        {
+            marketButton.SetActive(false);
+        }
+
         if (UIManager.Instance != null)
         {
             UIManager.Instance.SetStatsPanelActive(false);
         }
-        
+
         if (gameplayHUDObjects != null)
         {
-            foreach (GameObject hudObj in gameplayHUDObjects)
+            foreach (GameObject hudObject in gameplayHUDObjects)
             {
-                if (hudObj != null) hudObj.SetActive(true);
+                if (hudObject != null)
+                {
+                    hudObject.SetActive(true);
+                }
             }
         }
 
-        // 6. Set TimeScale to 1 (unpause game)
+        // 6. Unpause game.
         Time.timeScale = 1f;
 
         Debug.Log("Game Started!");
     }
 
-public void OnPlayerDeath(int goldCollectedThisRun)
+    public void OnPlayerDeath(int goldCollectedThisRun)
     {
-        // 1. Save gold collected permanently
+        // 1. Save collected gold permanently.
         int totalGold = PlayerPrefs.GetInt("PlayerGold", 0);
+
         totalGold += goldCollectedThisRun;
+
         PlayerPrefs.SetInt("PlayerGold", totalGold);
         PlayerPrefs.Save();
 
-        Debug.Log($"Player Died! Collected Gold: {goldCollectedThisRun}. Total Gold: {totalGold}");
+        Debug.Log(
+            $"Player Died! Collected Gold: {goldCollectedThisRun}. " + $"Total Gold: {totalGold}"
+        );
 
-        // 2. Pause the game and free the cursor so the player can click the results screen
+        // 2. Pause the game and release the cursor.
         Time.timeScale = 0f;
+
         Cursor.lockState = CursorLockMode.None;
         Cursor.visible = true;
 
-        // 3. Stop spawning and clear the remaining enemies
+        // 3. Stop spawning and clear remaining gameplay objects.
         if (enemySpawner != null)
         {
             enemySpawner.isSpawning = false;
             enemySpawner.ClearAllEnemies();
         }
 
-        // 4. Show the results screen. Its \"Continue\" button calls ReturnToMainMenu().
+        ClearExperiencePickups();
+
+        // 4. Show results screen.
         float survivalTime = gameTimer != null ? gameTimer.GetElapsedTime() : 0f;
+
         if (UIManager.Instance != null)
         {
             UIManager.Instance.ShowDeathScreen(goldCollectedThisRun, totalGold, survivalTime);
         }
         else
         {
-            // No UI available - fall back to going straight to the menu.
+            // No UI available, return directly to main menu.
             ReturnToMainMenu();
         }
     }
 
-public void ReturnToMainMenu()
+    public void ReturnToMainMenu()
     {
-        // Pause time Scale
+        // 1. Pause game.
         Time.timeScale = 0f;
 
-        // Unlock and show cursor
+        // 2. Unlock and show cursor.
         Cursor.lockState = CursorLockMode.None;
         Cursor.visible = true;
 
-        // Disable enemy spawning and clear remaining enemies
+        // 3. Stop spawning and clear gameplay objects.
         if (enemySpawner != null)
         {
             enemySpawner.isSpawning = false;
             enemySpawner.ClearAllEnemies();
         }
 
-        // Force player components to reload baseline stats from PlayerPrefs (resets level-up bonuses)
+        ClearExperiencePickups();
+
+        // 4. Reload baseline player stats from PlayerPrefs.
         if (playerObj != null)
         {
             playerObj.SendMessage("Start", SendMessageOptions.DontRequireReceiver);
         }
 
-        // Toggle UI Panels, Buttons & Stats Panel
-        if (playButton != null) playButton.SetActive(true);
-        if (marketButton != null) marketButton.SetActive(true);
+        // 5. Show main menu UI.
+        if (playButton != null)
+        {
+            playButton.SetActive(true);
+        }
+
+        if (marketButton != null)
+        {
+            marketButton.SetActive(true);
+        }
+
         if (UIManager.Instance != null)
         {
             UIManager.Instance.SetStatsPanelActive(true);
@@ -196,61 +236,92 @@ public void ReturnToMainMenu()
 
         if (gameplayHUDObjects != null)
         {
-            foreach (GameObject hudObj in gameplayHUDObjects)
+            foreach (GameObject hudObject in gameplayHUDObjects)
             {
-                if (hudObj != null) hudObj.SetActive(false);
+                if (hudObject != null)
+                {
+                    hudObject.SetActive(false);
+                }
             }
         }
-
-        // Reset shop UI if opened (ShopManager handles this via close button)
     }
 
+    private void ClearExperiencePickups()
+    {
+        ExperiencePickup[] pickups = FindObjectsByType<ExperiencePickup>(FindObjectsSortMode.None);
 
-// Styles the PLAY and SHOP buttons to match the rest of the UI.
+        foreach (ExperiencePickup pickup in pickups)
+        {
+            if (pickup != null)
+            {
+                Destroy(pickup.gameObject);
+            }
+        }
+    }
+
+    // Styles the PLAY and SHOP buttons to match the rest of the UI.
     private void StyleMenuButtons()
     {
-        StyleMenuButton(playButton, "PLAY", UITheme.Affordable); // green = go
-        StyleMenuButton(marketButton, "SHOP", UITheme.Gold);     // gold = spend
+        StyleMenuButton(playButton, "PLAY", UITheme.Affordable);
+
+        StyleMenuButton(marketButton, "SHOP", UITheme.Gold);
     }
 
-    private void StyleMenuButton(GameObject buttonObj, string label, Color accent)
+    private void StyleMenuButton(GameObject buttonObject, string label, Color accent)
     {
-        if (buttonObj == null) return;
-
-        UnityEngine.UI.Image img = buttonObj.GetComponent<UnityEngine.UI.Image>();
-        UnityEngine.UI.Button btn = buttonObj.GetComponent<UnityEngine.UI.Button>();
-        if (img != null) UIStyle.ApplyPanel(img, Color.white); // rounded; ColorBlock tints it
-        if (btn != null)
+        if (buttonObject == null)
         {
-            btn.transition = UnityEngine.UI.Selectable.Transition.ColorTint;
-            btn.targetGraphic = img;
-            UnityEngine.UI.ColorBlock cb = btn.colors;
-            cb.normalColor = UITheme.Card;
-            cb.highlightedColor = Color.Lerp(UITheme.Card, accent, 0.5f);
-            cb.pressedColor = Color.Lerp(UITheme.Card, accent, 0.7f);
-            cb.selectedColor = UITheme.Card;
-            cb.fadeDuration = 0.1f;
-            btn.colors = cb;
+            return;
         }
 
-        // Label: prefer TextMeshPro, fall back to legacy UI Text.
-        TMPro.TextMeshProUGUI tmp = buttonObj.GetComponentInChildren<TMPro.TextMeshProUGUI>();
+        UnityEngine.UI.Image image = buttonObject.GetComponent<UnityEngine.UI.Image>();
+
+        UnityEngine.UI.Button button = buttonObject.GetComponent<UnityEngine.UI.Button>();
+
+        if (image != null)
+        {
+            UIStyle.ApplyPanel(image, Color.white);
+        }
+
+        if (button != null)
+        {
+            button.transition = UnityEngine.UI.Selectable.Transition.ColorTint;
+
+            button.targetGraphic = image;
+
+            UnityEngine.UI.ColorBlock colors = button.colors;
+
+            colors.normalColor = UITheme.Card;
+            colors.highlightedColor = Color.Lerp(UITheme.Card, accent, 0.5f);
+
+            colors.pressedColor = Color.Lerp(UITheme.Card, accent, 0.7f);
+
+            colors.selectedColor = UITheme.Card;
+            colors.fadeDuration = 0.1f;
+
+            button.colors = colors;
+        }
+
+        // Prefer TextMeshPro, fall back to legacy UI Text.
+        TMPro.TextMeshProUGUI tmp = buttonObject.GetComponentInChildren<TMPro.TextMeshProUGUI>();
+
         if (tmp != null)
         {
             tmp.text = label;
             tmp.color = accent;
             tmp.fontStyle = TMPro.FontStyles.Bold | TMPro.FontStyles.UpperCase;
+
             tmp.characterSpacing = 6f;
+            return;
         }
-        else
+
+        UnityEngine.UI.Text legacyText = buttonObject.GetComponentInChildren<UnityEngine.UI.Text>();
+
+        if (legacyText != null)
         {
-            UnityEngine.UI.Text legacy = buttonObj.GetComponentInChildren<UnityEngine.UI.Text>();
-            if (legacy != null)
-            {
-                legacy.text = label.ToUpper();
-                legacy.color = accent;
-                legacy.fontStyle = FontStyle.Bold;
-            }
+            legacyText.text = label.ToUpper();
+            legacyText.color = accent;
+            legacyText.fontStyle = FontStyle.Bold;
         }
     }
 }

@@ -110,6 +110,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::EnemyHealth
   maxHealth: 14
   xpReward: 10
+  experiencePickupPrefab: {fileID: 1200123594080468964, guid: 79fa1cbc2f925ef4e9bf67ffba6e602b, type: 3}
+  experienceDropHeight: 0.6
+  experienceDropScatter: 0.35
   goldReward: 4
   flashColor: {r: 1, g: 0.25, b: 0.25, a: 1}
   flashDuration: 0.08

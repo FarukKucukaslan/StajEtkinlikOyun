@@ -1,6 +1,5 @@
-using UnityEngine;
 using System.Collections;
-
+using UnityEngine;
 
 public class EnemyHealth : MonoBehaviour
 {
@@ -13,6 +12,15 @@ public class EnemyHealth : MonoBehaviour
     [Tooltip("Amount of XP rewarded to the player when this enemy dies.")]
     public float xpReward = 15f;
 
+    [SerializeField]
+    private ExperiencePickup experiencePickupPrefab;
+
+    [SerializeField]
+    private float experienceDropHeight = 0.6f;
+
+    [SerializeField]
+    private float experienceDropScatter = 0.35f;
+
     [Header("Gold Settings")]
     [Tooltip("Amount of Gold rewarded to the player when this enemy dies.")]
     public int goldReward = 5;
@@ -20,6 +28,7 @@ public class EnemyHealth : MonoBehaviour
     [Header("Hit Flash")]
     [Tooltip("Color the enemy briefly tints to when it takes damage.")]
     public Color flashColor = new Color(1f, 0.25f, 0.25f, 1f);
+
     [Tooltip("How long the hit flash lasts, in seconds.")]
     public float flashDuration = 0.08f;
 
@@ -29,8 +38,7 @@ public class EnemyHealth : MonoBehaviour
     private static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
     private static readonly int ColorId = Shader.PropertyToID("_Color");
 
-
-private void Start()
+    private void Start()
     {
         _currentHealth = maxHealth;
 
@@ -40,7 +48,7 @@ private void Start()
         _mpb = new MaterialPropertyBlock();
     }
 
-public void TakeDamage(float damage)
+    public void TakeDamage(float damage)
     {
         _currentHealth -= damage;
 
@@ -60,7 +68,8 @@ public void TakeDamage(float damage)
         // Flash on hit (only if the enemy survives; dead ones are destroyed immediately).
         if (_renderers != null && _renderers.Length > 0)
         {
-            if (_flashRoutine != null) StopCoroutine(_flashRoutine);
+            if (_flashRoutine != null)
+                StopCoroutine(_flashRoutine);
             _flashRoutine = StartCoroutine(FlashRoutine());
         }
     }
@@ -72,33 +81,25 @@ public void TakeDamage(float damage)
         JuiceManager.DeathPop(transform.position, GetEnemyColor());
         JuiceManager.Shake(0.3f);
 
-        // Award XP and Gold to the player stats when the enemy dies
-        GameObject playerObj = GameObject.FindGameObjectWithTag("Player");
-        if (playerObj != null)
-        {
-            PlayerStats stats = playerObj.GetComponent<PlayerStats>();
-            if (stats != null)
-            {
-                stats.AddXP(xpReward);
-                stats.AddGold(goldReward);
-            }
-        }
+        RewardPlayer();
 
         // Destroy the enemy GameObject
         Destroy(gameObject);
     }
 
-
-// Reads the enemy's main color so the death debris matches it. Falls back to white.
+    // Reads the enemy's main color so the death debris matches it. Falls back to white.
     private Color GetEnemyColor()
     {
         if (_renderers != null)
         {
             foreach (Renderer r in _renderers)
             {
-                if (r == null || r.sharedMaterial == null) continue;
-                if (r.sharedMaterial.HasProperty(BaseColorId)) return r.sharedMaterial.GetColor(BaseColorId);
-                if (r.sharedMaterial.HasProperty(ColorId)) return r.sharedMaterial.GetColor(ColorId);
+                if (r == null || r.sharedMaterial == null)
+                    continue;
+                if (r.sharedMaterial.HasProperty(BaseColorId))
+                    return r.sharedMaterial.GetColor(BaseColorId);
+                if (r.sharedMaterial.HasProperty(ColorId))
+                    return r.sharedMaterial.GetColor(ColorId);
             }
         }
         return Color.white;
@@ -109,10 +110,11 @@ public void TakeDamage(float damage)
     {
         foreach (Renderer r in _renderers)
         {
-            if (r == null) continue;
+            if (r == null)
+                continue;
             r.GetPropertyBlock(_mpb);
             _mpb.SetColor(BaseColorId, flashColor); // URP Lit
-            _mpb.SetColor(ColorId, flashColor);     // Standard / legacy shaders
+            _mpb.SetColor(ColorId, flashColor); // Standard / legacy shaders
             r.SetPropertyBlock(_mpb);
         }
 
@@ -121,8 +123,45 @@ public void TakeDamage(float damage)
         // Clearing the block returns each renderer to its original material color.
         foreach (Renderer r in _renderers)
         {
-            if (r != null) r.SetPropertyBlock(null);
+            if (r != null)
+                r.SetPropertyBlock(null);
         }
         _flashRoutine = null;
+    }
+
+    private void RewardPlayer()
+    {
+        PlayerStats playerStats = FindFirstObjectByType<PlayerStats>();
+
+        if (experiencePickupPrefab != null)
+        {
+            SpawnExperiencePickup();
+        }
+        else if (playerStats != null)
+        {
+            // Prefab bağlanmadıysa oyun bozulmasın.
+            playerStats.AddXP(xpReward);
+        }
+
+        if (playerStats != null)
+        {
+            playerStats.AddGold(goldReward);
+        }
+    }
+
+    private void SpawnExperiencePickup()
+    {
+        Vector2 randomOffset = Random.insideUnitCircle * experienceDropScatter;
+
+        Vector3 spawnPosition =
+            transform.position + new Vector3(randomOffset.x, experienceDropHeight, randomOffset.y);
+
+        ExperiencePickup pickup = Instantiate(
+            experiencePickupPrefab,
+            spawnPosition,
+            Quaternion.identity
+        );
+
+        pickup.Initialize(xpReward);
     }
 }
