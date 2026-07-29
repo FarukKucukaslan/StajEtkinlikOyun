@@ -66946,8 +66946,8 @@ MonoBehaviour:
     m_Bits: 64
   eliteEnemiesEnabled: 1
   eliteWarningLeadTime: 3
-  firstEliteDelay: 6
-  eliteSpawnInterval: 12
+  firstEliteDelay: 15
+  eliteSpawnInterval: 18
   eliteScaleMultiplier: 1.6
   eliteHealthMultiplier: 5
   eliteDamageMultiplier: 1.5

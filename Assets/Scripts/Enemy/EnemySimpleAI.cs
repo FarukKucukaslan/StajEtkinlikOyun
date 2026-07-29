@@ -6,6 +6,10 @@ public class EnemySimpleAI : MonoBehaviour
     [Tooltip("Movement speed of this enemy.")]
     public float speed = 3f;
 
+    [Tooltip("Visual facing correction in degrees. Use 180 if the model faces backwards.")]
+    [SerializeField]
+    private float rotationOffsetY = 0f;
+
     [Tooltip("Rotation speed when turning toward the player.")]
     public float rotationSpeed = 360f;
 
@@ -172,7 +176,16 @@ public class EnemySimpleAI : MonoBehaviour
 
     private void RotateTowards(Vector3 direction)
     {
-        Quaternion targetRotation = Quaternion.LookRotation(direction);
+        if (direction.sqrMagnitude < 0.001f)
+        {
+            return;
+        }
+
+        Quaternion movementRotation = Quaternion.LookRotation(direction);
+
+        Quaternion rotationOffset = Quaternion.Euler(0f, rotationOffsetY, 0f);
+
+        Quaternion targetRotation = movementRotation * rotationOffset;
 
         transform.rotation = Quaternion.RotateTowards(
             transform.rotation,
