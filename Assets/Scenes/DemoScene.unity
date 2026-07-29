@@ -38687,6 +38687,8 @@ MonoBehaviour:
   currentXP: 0
   xpToNextLevel: 100
   xpRequirementMultiplier: 1.2
+  baseXPPickupRange: 4.5
+  maximumXPPickupRange: 15
   armor: 0
   goldCollected: 0
 --- !u!114 &1116462423
@@ -65604,6 +65606,16 @@ MonoBehaviour:
   spawnInterval: 1.5
   minSpawnDistance: 12
   maxSpawnDistance: 20
+  eliteEnemiesEnabled: 1
+  firstEliteDelay: 30
+  eliteSpawnInterval: 35
+  eliteScaleMultiplier: 1.6
+  eliteHealthMultiplier: 5
+  eliteDamageMultiplier: 1.5
+  eliteSpeedMultiplier: 0.85
+  eliteRewardMultiplier: 5
+  eliteXPDropCount: 5
+  eliteTint: {r: 0.75, g: 0.15, b: 1, a: 1}
   maxEnemies: 150
   isSpawning: 0
 --- !u!1 &1906823543

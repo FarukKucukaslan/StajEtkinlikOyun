@@ -6,10 +6,13 @@ public class EnemyHealth : MonoBehaviour
     [Header("Health Settings")]
     [Tooltip("Maximum health of this enemy.")]
     public float maxHealth = 20f;
-    private float _currentHealth;
+
+    public float CurrentHealth => _currentHealth;
+
+    public bool IsElite { get; private set; }
 
     [Header("XP Settings")]
-    [Tooltip("Amount of XP rewarded to the player when this enemy dies.")]
+    [Tooltip("Total XP rewarded when this enemy dies.")]
     public float xpReward = 15f;
 
     [SerializeField]
@@ -21,112 +24,94 @@ public class EnemyHealth : MonoBehaviour
     [SerializeField]
     private float experienceDropScatter = 0.35f;
 
+    [SerializeField, Min(1)]
+    private int experienceDropCount = 1;
+
     [Header("Gold Settings")]
-    [Tooltip("Amount of Gold rewarded to the player when this enemy dies.")]
+    [Tooltip("Gold rewarded when this enemy dies.")]
     public int goldReward = 5;
 
     [Header("Hit Flash")]
-    [Tooltip("Color the enemy briefly tints to when it takes damage.")]
+    [Tooltip("Color used when the enemy takes damage.")]
     public Color flashColor = new Color(1f, 0.25f, 0.25f, 1f);
 
-    [Tooltip("How long the hit flash lasts, in seconds.")]
+    [Tooltip("Duration of the hit flash.")]
     public float flashDuration = 0.08f;
 
+    private float _currentHealth;
+
     private Renderer[] _renderers;
-    private MaterialPropertyBlock _mpb;
+    private MaterialPropertyBlock _propertyBlock;
     private Coroutine _flashRoutine;
+
+    private Color _eliteTint = new Color(0.75f, 0.15f, 1f, 1f);
+
     private static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
+
     private static readonly int ColorId = Shader.PropertyToID("_Color");
 
     private void Start()
     {
         _currentHealth = maxHealth;
 
-        // Cache renderers + one shared property block for the hit-flash effect.
-        // MaterialPropertyBlock tints per-instance without cloning materials (no leaks).
         _renderers = GetComponentsInChildren<Renderer>();
-        _mpb = new MaterialPropertyBlock();
+
+        _propertyBlock = new MaterialPropertyBlock();
+
+        RestoreVisualColor();
+    }
+
+    public void ConfigureAsElite(int xpDropCount, Color tint)
+    {
+        IsElite = true;
+
+        experienceDropCount = Mathf.Max(1, xpDropCount);
+
+        _eliteTint = tint;
+
+        // Also supports being called after Start.
+        if (_renderers != null)
+        {
+            RestoreVisualColor();
+        }
     }
 
     public void TakeDamage(float damage)
     {
         _currentHealth -= damage;
 
-        // Floating damage number pops on every hit.
         JuiceManager.DamageNumber(transform.position, damage);
 
-        if (_currentHealth <= 0)
+        if (_currentHealth <= 0f)
         {
             Die();
             return;
         }
 
-        // Surviving hit: tiny freeze + small shake so hits feel weighty.
-        JuiceManager.HitStop(0.03f);
-        JuiceManager.Shake(0.12f);
+        JuiceManager.HitStop(IsElite ? 0.045f : 0.03f);
 
-        // Flash on hit (only if the enemy survives; dead ones are destroyed immediately).
+        JuiceManager.Shake(IsElite ? 0.2f : 0.12f);
+
         if (_renderers != null && _renderers.Length > 0)
         {
             if (_flashRoutine != null)
+            {
                 StopCoroutine(_flashRoutine);
+            }
+
             _flashRoutine = StartCoroutine(FlashRoutine());
         }
     }
 
     private void Die()
     {
-        // Debris burst + a bigger shake on death. (No hit-stop here: a kill can
-        // trigger a level-up that pauses the game, and we don't want to fight it.)
         JuiceManager.DeathPop(transform.position, GetEnemyColor());
-        JuiceManager.Shake(0.3f);
+
+        JuiceManager.Shake(IsElite ? 0.65f : 0.3f);
 
         RewardPlayer();
 
-        // Destroy the enemy GameObject
         Destroy(gameObject);
-    }
-
-    // Reads the enemy's main color so the death debris matches it. Falls back to white.
-    private Color GetEnemyColor()
-    {
-        if (_renderers != null)
-        {
-            foreach (Renderer r in _renderers)
-            {
-                if (r == null || r.sharedMaterial == null)
-                    continue;
-                if (r.sharedMaterial.HasProperty(BaseColorId))
-                    return r.sharedMaterial.GetColor(BaseColorId);
-                if (r.sharedMaterial.HasProperty(ColorId))
-                    return r.sharedMaterial.GetColor(ColorId);
-            }
-        }
-        return Color.white;
-    }
-
-    // Briefly tints all renderers to flashColor, then clears the override.
-    private IEnumerator FlashRoutine()
-    {
-        foreach (Renderer r in _renderers)
-        {
-            if (r == null)
-                continue;
-            r.GetPropertyBlock(_mpb);
-            _mpb.SetColor(BaseColorId, flashColor); // URP Lit
-            _mpb.SetColor(ColorId, flashColor); // Standard / legacy shaders
-            r.SetPropertyBlock(_mpb);
-        }
-
-        yield return new WaitForSeconds(flashDuration);
-
-        // Clearing the block returns each renderer to its original material color.
-        foreach (Renderer r in _renderers)
-        {
-            if (r != null)
-                r.SetPropertyBlock(null);
-        }
-        _flashRoutine = null;
     }
 
     private void RewardPlayer()
@@ -135,11 +120,11 @@ public class EnemyHealth : MonoBehaviour
 
         if (experiencePickupPrefab != null)
         {
-            SpawnExperiencePickup();
+            SpawnExperiencePickups();
         }
         else if (playerStats != null)
         {
-            // Prefab bağlanmadıysa oyun bozulmasın.
+            // Fallback in case the XP prefab is not assigned.
             playerStats.AddXP(xpReward);
         }
 
@@ -149,19 +134,122 @@ public class EnemyHealth : MonoBehaviour
         }
     }
 
-    private void SpawnExperiencePickup()
+    private void SpawnExperiencePickups()
     {
-        Vector2 randomOffset = Random.insideUnitCircle * experienceDropScatter;
+        int dropCount = Mathf.Max(1, experienceDropCount);
 
-        Vector3 spawnPosition =
-            transform.position + new Vector3(randomOffset.x, experienceDropHeight, randomOffset.y);
+        float xpPerPickup = xpReward / dropCount;
 
-        ExperiencePickup pickup = Instantiate(
-            experiencePickupPrefab,
-            spawnPosition,
-            Quaternion.identity
-        );
+        float scatterRadius = IsElite ? experienceDropScatter * 2.5f : experienceDropScatter;
 
-        pickup.Initialize(xpReward);
+        for (int i = 0; i < dropCount; i++)
+        {
+            Vector2 randomOffset = Random.insideUnitCircle * scatterRadius;
+
+            Vector3 spawnPosition =
+                transform.position
+                + new Vector3(randomOffset.x, experienceDropHeight, randomOffset.y);
+
+            ExperiencePickup pickup = Instantiate(
+                experiencePickupPrefab,
+                spawnPosition,
+                Quaternion.identity
+            );
+
+            pickup.Initialize(xpPerPickup);
+        }
+    }
+
+    private IEnumerator FlashRoutine()
+    {
+        ApplyColorOverride(flashColor);
+
+        yield return new WaitForSeconds(flashDuration);
+
+        RestoreVisualColor();
+        _flashRoutine = null;
+    }
+
+    private void RestoreVisualColor()
+    {
+        if (_renderers == null)
+        {
+            return;
+        }
+
+        if (IsElite)
+        {
+            ApplyColorOverride(_eliteTint);
+            return;
+        }
+
+        foreach (Renderer enemyRenderer in _renderers)
+        {
+            if (enemyRenderer != null)
+            {
+                enemyRenderer.SetPropertyBlock(null);
+            }
+        }
+    }
+
+    private void ApplyColorOverride(Color color)
+    {
+        if (_renderers == null || _propertyBlock == null)
+        {
+            return;
+        }
+
+        foreach (Renderer enemyRenderer in _renderers)
+        {
+            if (enemyRenderer == null || enemyRenderer.sharedMaterial == null)
+            {
+                continue;
+            }
+
+            _propertyBlock.Clear();
+
+            if (enemyRenderer.sharedMaterial.HasProperty(BaseColorId))
+            {
+                _propertyBlock.SetColor(BaseColorId, color);
+            }
+
+            if (enemyRenderer.sharedMaterial.HasProperty(ColorId))
+            {
+                _propertyBlock.SetColor(ColorId, color);
+            }
+
+            enemyRenderer.SetPropertyBlock(_propertyBlock);
+        }
+    }
+
+    private Color GetEnemyColor()
+    {
+        if (IsElite)
+        {
+            return _eliteTint;
+        }
+
+        if (_renderers != null)
+        {
+            foreach (Renderer enemyRenderer in _renderers)
+            {
+                if (enemyRenderer == null || enemyRenderer.sharedMaterial == null)
+                {
+                    continue;
+                }
+
+                if (enemyRenderer.sharedMaterial.HasProperty(BaseColorId))
+                {
+                    return enemyRenderer.sharedMaterial.GetColor(BaseColorId);
+                }
+
+                if (enemyRenderer.sharedMaterial.HasProperty(ColorId))
+                {
+                    return enemyRenderer.sharedMaterial.GetColor(ColorId);
+                }
+            }
+        }
+
+        return Color.white;
     }
 }

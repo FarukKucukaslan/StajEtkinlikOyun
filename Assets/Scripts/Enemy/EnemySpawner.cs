@@ -6,134 +6,326 @@ public class EnemySpawner : MonoBehaviour
     [System.Serializable]
     public struct EnemySpawnConfig
     {
-        [Tooltip("Name of the enemy (only used to organize in the Inspector).")]
+        [Tooltip("Name of the enemy, used only for organization in the Inspector.")]
         public string enemyName;
 
         [Tooltip("The prefab of the enemy to instantiate.")]
         public GameObject enemyPrefab;
 
-        [Tooltip("Spawn chance weight. Higher weight means this enemy spawns more often.")]
+        [Tooltip("Spawn chance weight. Higher values make this enemy more common.")]
         [Range(0f, 100f)]
         public float spawnChanceWeight;
 
-        [Header("Stat Multipliers (0 = Auto-Calculated)")]
-        [Tooltip("Health and Rewards multiplier (e.g. 1.5 = 150% health/XP/gold).")]
+        [Header("Stat Multipliers (0 = Default Value)")]
+        [Tooltip("Health and reward multiplier.")]
         public float healthAndRewardMultiplier;
 
-        [Tooltip("Damage multiplier (e.g. 1.3 = 130% damage).")]
+        [Tooltip("Damage multiplier.")]
         public float damageMultiplier;
 
-        [Tooltip("Speed multiplier (e.g. 1.1 = 110% speed).")]
+        [Tooltip("Movement speed multiplier.")]
         public float speedMultiplier;
     }
 
     [Header("Target Player")]
-    [Tooltip("The player transform to spawn enemies around. If left empty, it will auto-find GameObject with 'Player' tag.")]
+    [Tooltip(
+        "Player transform used as the center of the spawn area. "
+            + "Automatically finds the Player tag when left empty."
+    )]
     public Transform player;
 
     [Header("Spawner Config")]
-    [Tooltip("List of all spawnable enemy types. Press the '+' button to add new ones in the Inspector.")]
     public List<EnemySpawnConfig> enemyTypes = new List<EnemySpawnConfig>();
 
-    [Tooltip("Time interval between enemy spawns (in seconds).")]
+    [Tooltip("Time between normal enemy spawns.")]
+    [Min(0.05f)]
     public float spawnInterval = 1.5f;
 
-    [Header("Spawn Distance settings")]
-    [Tooltip("Minimum distance from the player to spawn enemies (off-screen recommended).")]
+    [Header("Spawn Distance Settings")]
+    [Tooltip("Minimum spawn distance from the player.")]
     public float minSpawnDistance = 12f;
 
-    [Tooltip("Maximum distance from the player to spawn enemies.")]
+    [Tooltip("Maximum spawn distance from the player.")]
     public float maxSpawnDistance = 20f;
 
+    [Header("Elite Enemy Settings")]
+    [Tooltip("Determines whether elite enemies can spawn.")]
+    public bool eliteEnemiesEnabled = true;
+
+    [Tooltip("Delay before the first elite enemy appears.")]
+    [Min(1f)]
+    public float firstEliteDelay = 40f;
+
+    [Tooltip("Time between elite enemies. The timer starts again after the previous elite dies.")]
+    [Min(1f)]
+    public float eliteSpawnInterval = 45f;
+
+    [Tooltip("Visual size multiplier applied to elite enemies.")]
+    [Min(1f)]
+    public float eliteScaleMultiplier = 1.6f;
+
+    [Tooltip("Health multiplier applied to elite enemies.")]
+    [Min(1f)]
+    public float eliteHealthMultiplier = 5f;
+
+    [Tooltip("Damage multiplier applied to elite enemies.")]
+    [Min(0.1f)]
+    public float eliteDamageMultiplier = 1.5f;
+
+    [Tooltip("Movement speed multiplier applied to elite enemies.")]
+    [Min(0.1f)]
+    public float eliteSpeedMultiplier = 0.85f;
+
+    [Tooltip("XP and gold multiplier applied to elite enemies.")]
+    [Min(1f)]
+    public float eliteRewardMultiplier = 5f;
+
+    [Tooltip("Number of XP crystals dropped by an elite enemy.")]
+    [Min(1)]
+    public int eliteXPDropCount = 5;
+
+    [Tooltip("Color tint used to visually distinguish elite enemies.")]
+    public Color eliteTint = new Color(0.75f, 0.15f, 1f, 1f);
+
     [Header("Performance")]
-    [Tooltip("Maximum enemies allowed alive at once. Caps horde size so framerate stays stable during long runs.")]
+    [Tooltip("Maximum number of enemies alive at the same time.")]
     public int maxEnemies = 150;
 
-
     [HideInInspector]
-    public bool isSpawning = false;
+    public bool isSpawning;
 
     private float _spawnTimer;
+    private float _eliteTimer;
+    private bool _firstEliteSpawned;
+
+    private GameObject _activeElite;
 
     private void Update()
     {
-        if (!isSpawning) return;
-        // Auto-find player if not assigned
-        if (player == null)
+        if (!isSpawning)
         {
-            GameObject playerObj = GameObject.FindGameObjectWithTag("Player");
-            if (playerObj != null)
-            {
-                player = playerObj.transform;
-            }
-            else
-            {
-                return; // Can't spawn without a player reference
-            }
+            return;
         }
 
-        // Timer control
-        _spawnTimer += Time.deltaTime;
-        if (_spawnTimer >= spawnInterval)
+        if (!TryFindPlayer())
         {
-            _spawnTimer = 0f;
-            SpawnEnemy();
+            return;
+        }
+
+        UpdateNormalSpawnTimer();
+        UpdateEliteSpawnTimer();
+    }
+
+    private bool TryFindPlayer()
+    {
+        if (player != null)
+        {
+            return true;
+        }
+
+        GameObject playerObject = GameObject.FindGameObjectWithTag("Player");
+
+        if (playerObject == null)
+        {
+            return false;
+        }
+
+        player = playerObject.transform;
+        return true;
+    }
+
+    private void UpdateNormalSpawnTimer()
+    {
+        _spawnTimer += Time.deltaTime;
+
+        if (_spawnTimer < spawnInterval)
+        {
+            return;
+        }
+
+        _spawnTimer = 0f;
+        SpawnNormalEnemy();
+    }
+
+    private void UpdateEliteSpawnTimer()
+    {
+        if (!eliteEnemiesEnabled)
+        {
+            return;
+        }
+
+        // Unity's destroyed objects compare equal to null.
+        if (_activeElite != null)
+        {
+            return;
+        }
+
+        _eliteTimer += Time.deltaTime;
+
+        float requiredDelay = _firstEliteSpawned ? eliteSpawnInterval : firstEliteDelay;
+
+        if (_eliteTimer < requiredDelay)
+        {
+            return;
+        }
+
+        if (SpawnEliteEnemy())
+        {
+            _eliteTimer = 0f;
+            _firstEliteSpawned = true;
         }
     }
 
-private void SpawnEnemy()
+    private void SpawnNormalEnemy()
     {
-        if (enemyTypes == null || enemyTypes.Count == 0) return;
+        if (!CanSpawnEnemy())
+        {
+            return;
+        }
 
-        // Stop spawning once we hit the live-enemy cap. Protects framerate during long runs.
-        // ponytail: FindGameObjectsWithTag scans each spawn tick (cheap at this cadence).
-        // If the profiler ever flags it, track a live counter here + decrement in EnemyHealth.Die instead.
-        if (GameObject.FindGameObjectsWithTag("Enemy").Length >= maxEnemies) return;
-
-        // Select an enemy index using weighted random selection
         int selectedIndex = GetRandomEnemyIndex();
-        if (selectedIndex == -1) return;
 
-        EnemySpawnConfig config = enemyTypes[selectedIndex];
-        if (config.enemyPrefab == null) return;
+        if (selectedIndex < 0)
+        {
+            return;
+        }
 
-        // Find a random position on a circle around the player
+        SpawnEnemy(enemyTypes[selectedIndex], false);
+    }
+
+    private bool SpawnEliteEnemy()
+    {
+        if (!CanSpawnEnemy())
+        {
+            return false;
+        }
+
+        int selectedIndex = GetRandomEnemyIndex();
+
+        if (selectedIndex < 0)
+        {
+            return false;
+        }
+
+        _activeElite = SpawnEnemy(enemyTypes[selectedIndex], true);
+
+        return _activeElite != null;
+    }
+
+    private bool CanSpawnEnemy()
+    {
+        if (enemyTypes == null || enemyTypes.Count == 0)
+        {
+            return false;
+        }
+
+        int currentEnemyCount = GameObject.FindGameObjectsWithTag("Enemy").Length;
+
+        return currentEnemyCount < maxEnemies;
+    }
+
+    private GameObject SpawnEnemy(EnemySpawnConfig config, bool spawnAsElite)
+    {
+        if (config.enemyPrefab == null)
+        {
+            return null;
+        }
+
         Vector3 spawnPosition = GetRandomSpawnPositionAroundPlayer();
 
-        // Spawn the enemy
-        GameObject enemyInstance = Instantiate(config.enemyPrefab, spawnPosition, Quaternion.identity);
+        GameObject enemyInstance = Instantiate(
+            config.enemyPrefab,
+            spawnPosition,
+            Quaternion.identity
+        );
 
-        // Per-type multipliers. Each enemy's identity now lives in its own prefab (base HP/speed/etc.),
-        // so a blank (0) multiplier means \"use the prefab value as-is\" (neutral 1.0).
-        // Set a multiplier > 0 in the Inspector only if you want to scale a specific type up or down.
-        float scaleFactor = config.healthAndRewardMultiplier;
-        float damageScale = config.damageMultiplier;
-        float speedScale = config.speedMultiplier;
+        ApplyEnemyTypeMultipliers(enemyInstance, config);
 
-        if (scaleFactor <= 0.05f) scaleFactor = 1f;
-        if (damageScale <= 0.05f) damageScale = 1f;
-        if (speedScale <= 0.05f) speedScale = 1f;
-
-        EnemyHealth healthComp = enemyInstance.GetComponent<EnemyHealth>();
-        if (healthComp != null)
+        if (spawnAsElite)
         {
-            healthComp.maxHealth = Mathf.Round(healthComp.maxHealth * scaleFactor);
-            healthComp.xpReward = Mathf.Round(healthComp.xpReward * scaleFactor);
-            healthComp.goldReward = Mathf.RoundToInt(healthComp.goldReward * scaleFactor);
+            ApplyEliteModifiers(enemyInstance);
         }
 
-        EnemySimpleAI aiComp = enemyInstance.GetComponent<EnemySimpleAI>();
-        if (aiComp != null)
+        return enemyInstance;
+    }
+
+    private void ApplyEnemyTypeMultipliers(GameObject enemyInstance, EnemySpawnConfig config)
+    {
+        float healthAndRewardScale = GetMultiplierOrDefault(config.healthAndRewardMultiplier);
+
+        float damageScale = GetMultiplierOrDefault(config.damageMultiplier);
+
+        float speedScale = GetMultiplierOrDefault(config.speedMultiplier);
+
+        EnemyHealth enemyHealth = enemyInstance.GetComponent<EnemyHealth>();
+
+        if (enemyHealth != null)
         {
-            aiComp.speed *= speedScale;
-            aiComp.damage = Mathf.Round(aiComp.damage * damageScale);
+            enemyHealth.maxHealth = Mathf.Round(enemyHealth.maxHealth * healthAndRewardScale);
+
+            enemyHealth.xpReward = Mathf.Round(enemyHealth.xpReward * healthAndRewardScale);
+
+            enemyHealth.goldReward = Mathf.RoundToInt(
+                enemyHealth.goldReward * healthAndRewardScale
+            );
         }
+
+        EnemySimpleAI enemyAI = enemyInstance.GetComponent<EnemySimpleAI>();
+
+        if (enemyAI != null)
+        {
+            enemyAI.speed *= speedScale;
+
+            enemyAI.damage = Mathf.Round(enemyAI.damage * damageScale);
+        }
+    }
+
+    private void ApplyEliteModifiers(GameObject enemyInstance)
+    {
+        enemyInstance.name = $"[ELITE] {enemyInstance.name}";
+
+        enemyInstance.transform.localScale *= eliteScaleMultiplier;
+
+        EnemyHealth enemyHealth = enemyInstance.GetComponent<EnemyHealth>();
+
+        if (enemyHealth != null)
+        {
+            enemyHealth.maxHealth = Mathf.Round(enemyHealth.maxHealth * eliteHealthMultiplier);
+
+            enemyHealth.xpReward = Mathf.Round(enemyHealth.xpReward * eliteRewardMultiplier);
+
+            enemyHealth.goldReward = Mathf.RoundToInt(
+                enemyHealth.goldReward * eliteRewardMultiplier
+            );
+
+            enemyHealth.ConfigureAsElite(eliteXPDropCount, eliteTint);
+        }
+
+        EnemySimpleAI enemyAI = enemyInstance.GetComponent<EnemySimpleAI>();
+
+        if (enemyAI != null)
+        {
+            enemyAI.damage = Mathf.Round(enemyAI.damage * eliteDamageMultiplier);
+
+            enemyAI.speed *= eliteSpeedMultiplier;
+
+            // Larger enemies need a slightly larger attack range.
+            enemyAI.attackRange *= eliteScaleMultiplier;
+        }
+
+        Debug.Log($"Elite enemy spawned: {enemyInstance.name}");
+    }
+
+    private float GetMultiplierOrDefault(float multiplier)
+    {
+        return multiplier <= 0.05f ? 1f : multiplier;
     }
 
     private int GetRandomEnemyIndex()
     {
         float totalWeight = 0f;
-        foreach (var config in enemyTypes)
+
+        foreach (EnemySpawnConfig config in enemyTypes)
         {
             if (config.enemyPrefab != null)
             {
@@ -141,52 +333,55 @@ private void SpawnEnemy()
             }
         }
 
-        if (totalWeight <= 0f) return -1;
+        if (totalWeight <= 0f)
+        {
+            return -1;
+        }
 
-        // Choose a random value within the range of total weight
         float randomValue = Random.Range(0f, totalWeight);
-        float currentWeightSum = 0f;
+
+        float currentWeight = 0f;
 
         for (int i = 0; i < enemyTypes.Count; i++)
         {
-            if (enemyTypes[i].enemyPrefab != null)
+            EnemySpawnConfig config = enemyTypes[i];
+
+            if (config.enemyPrefab == null)
             {
-                currentWeightSum += enemyTypes[i].spawnChanceWeight;
-                if (randomValue <= currentWeightSum)
-                {
-                    return i;
-                }
+                continue;
+            }
+
+            currentWeight += config.spawnChanceWeight;
+
+            if (randomValue <= currentWeight)
+            {
+                return i;
             }
         }
 
-        return -1;
+        return enemyTypes.Count - 1;
     }
 
     private Vector3 GetRandomSpawnPositionAroundPlayer()
     {
-        // Choose a random angle (in radians)
         float randomAngle = Random.Range(0f, 360f) * Mathf.Deg2Rad;
 
-        // Choose a random distance between min and max range
         float randomDistance = Random.Range(minSpawnDistance, maxSpawnDistance);
 
-        // Convert polar coordinates to Cartesian (X, Z) coordinates
         float xOffset = Mathf.Cos(randomAngle) * randomDistance;
+
         float zOffset = Mathf.Sin(randomAngle) * randomDistance;
 
-        // Place on the horizontal plane relative to the player's position
         Vector3 spawnPosition = player.position + new Vector3(xOffset, 0f, zOffset);
-        
-        // Snap spawn position Y to ground level using a raycast (so they spawn on top of hills/terrain)
-        Ray ray = new Ray(new Vector3(spawnPosition.x, spawnPosition.y + 25f, spawnPosition.z), Vector3.down);
-        RaycastHit hit;
-        if (Physics.Raycast(ray, out hit, 50f))
+
+        Ray groundRay = new Ray(spawnPosition + Vector3.up * 25f, Vector3.down);
+
+        if (Physics.Raycast(groundRay, out RaycastHit hit, 50f))
         {
             spawnPosition.y = hit.point.y;
         }
         else
         {
-            // Fallback to player's current height if no ground is detected
             spawnPosition.y = player.position.y;
         }
 
@@ -196,6 +391,7 @@ private void SpawnEnemy()
     public void ClearAllEnemies()
     {
         GameObject[] enemies = GameObject.FindGameObjectsWithTag("Enemy");
+
         foreach (GameObject enemy in enemies)
         {
             if (enemy != null)
@@ -203,5 +399,15 @@ private void SpawnEnemy()
                 Destroy(enemy);
             }
         }
+
+        ResetSpawnTimers();
+    }
+
+    private void ResetSpawnTimers()
+    {
+        _spawnTimer = 0f;
+        _eliteTimer = 0f;
+        _firstEliteSpawned = false;
+        _activeElite = null;
     }
 }
