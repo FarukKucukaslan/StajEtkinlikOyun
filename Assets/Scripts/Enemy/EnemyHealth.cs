@@ -30,6 +30,13 @@ public class EnemyHealth : MonoBehaviour
     [Tooltip("Gold rewarded when this enemy dies.")]
     public int goldReward = 5;
 
+    [Header("Elite Reward Chest")]
+    [SerializeField]
+    private EliteRewardChest eliteRewardChestPrefab;
+
+    [SerializeField]
+    private float rewardChestDropHeight = 0.5f;
+
     [Header("Hit Flash")]
     [Tooltip("Color used when the enemy takes damage.")]
     public Color flashColor = new Color(1f, 0.25f, 0.25f, 1f);
@@ -143,9 +150,29 @@ public class EnemyHealth : MonoBehaviour
         JuiceManager.Shake(IsElite ? 0.65f : 0.3f);
 
         RewardPlayer();
+
+        if (IsElite)
+        {
+            SpawnEliteRewardChest();
+        }
+
         ReportEliteRemoval();
 
         Destroy(gameObject);
+    }
+
+    private void SpawnEliteRewardChest()
+    {
+        if (eliteRewardChestPrefab == null)
+        {
+            Debug.LogWarning($"{name}: Elite reward chest prefab is not assigned.", this);
+
+            return;
+        }
+
+        Vector3 spawnPosition = transform.position + Vector3.up * rewardChestDropHeight;
+
+        Instantiate(eliteRewardChestPrefab, spawnPosition, Quaternion.identity);
     }
 
     private void RewardPlayer()

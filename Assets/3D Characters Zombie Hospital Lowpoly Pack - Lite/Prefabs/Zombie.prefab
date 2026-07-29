@@ -1264,6 +1264,8 @@ MonoBehaviour:
   experienceDropScatter: 0.35
   experienceDropCount: 1
   goldReward: 6
+  eliteRewardChestPrefab: {fileID: 7602477514014801722, guid: 86b2f937cc7f1ab4aa614a09a39a842b, type: 3}
+  rewardChestDropHeight: 0.5
   flashColor: {r: 1, g: 0.25, b: 0.25, a: 1}
   flashDuration: 0.08
 --- !u!136 &1855704208264488860

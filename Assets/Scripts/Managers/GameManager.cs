@@ -116,6 +116,7 @@ public class GameManager : MonoBehaviour
         }
 
         ClearExperiencePickups();
+        ClearEliteRewardChests();
 
         // 5. Hide main menu and show gameplay HUD.
         if (playButton != null)
@@ -178,6 +179,7 @@ public class GameManager : MonoBehaviour
         }
 
         ClearExperiencePickups();
+        ClearEliteRewardChests();
 
         // 4. Show results screen.
         float survivalTime = gameTimer != null ? gameTimer.GetElapsedTime() : 0f;
@@ -210,6 +212,7 @@ public class GameManager : MonoBehaviour
         }
 
         ClearExperiencePickups();
+        ClearEliteRewardChests();
 
         // 4. Reload baseline player stats from PlayerPrefs.
         if (playerObj != null)
@@ -322,6 +325,21 @@ public class GameManager : MonoBehaviour
             legacyText.text = label.ToUpper();
             legacyText.color = accent;
             legacyText.fontStyle = FontStyle.Bold;
+        }
+    }
+
+    private void ClearEliteRewardChests()
+    {
+        EliteRewardChest[] rewardChests = FindObjectsByType<EliteRewardChest>(
+            FindObjectsSortMode.None
+        );
+
+        foreach (EliteRewardChest rewardChest in rewardChests)
+        {
+            if (rewardChest != null)
+            {
+                Destroy(rewardChest.gameObject);
+            }
         }
     }
 }

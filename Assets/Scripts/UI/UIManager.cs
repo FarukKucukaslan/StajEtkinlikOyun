@@ -92,6 +92,16 @@ public class UIManager : MonoBehaviour
     private TextMeshProUGUI _rerollLabel;
     private int _rerollsLeft;
 
+    private enum UpgradeSelectionSource
+    {
+        LevelUp,
+        EliteChest,
+    }
+
+    private UpgradeSelectionSource _selectionSource = UpgradeSelectionSource.LevelUp;
+
+    private TextMeshProUGUI _selectionHeader;
+
     // Numbers in perk text (e.g. "+15%", "-0.2s", "8") get highlighted gold.
     private static readonly Regex _numberRegex = new Regex(
         @"[+\-]?\d+(?:\.\d+)?(?:%|s)?",
@@ -667,22 +677,60 @@ public class UIManager : MonoBehaviour
     private void OpenLevelUpSelection()
     {
         if (levelUpPanel == null)
+        {
             return;
+        }
 
-        // Refresh stats panel details
+        _selectionSource = UpgradeSelectionSource.LevelUp;
+
         UpdateStatsPanelText();
 
-        // Ensure cursor is visible so player can select an upgrade
         Cursor.lockState = CursorLockMode.None;
         Cursor.visible = true;
 
-        // Fresh set of rerolls for this level-up, then fill the three cards.
+        SetSelectionHeader("LEVEL UP");
+        SetRerollVisible(true);
+
         _rerollsLeft = rerollsPerLevelUp;
+
         PopulateOptions();
         UpdateRerollLabel();
 
-        // Display the panels
         SetLevelUpUIActive(true);
+    }
+
+    public bool OpenEliteRewardSelection()
+    {
+        if (levelUpPanel == null || playerStats == null)
+        {
+            return false;
+        }
+
+        // Aynı anda level-up ekranı açıksa sandığı henüz toplama.
+        // Seçim tamamlandıktan sonra oyuncu sandığı tekrar açabilir.
+        if (levelUpPanel.activeSelf)
+        {
+            return false;
+        }
+
+        _selectionSource = UpgradeSelectionSource.EliteChest;
+
+        UpdateStatsPanelText();
+
+        Cursor.lockState = CursorLockMode.None;
+        Cursor.visible = true;
+
+        SetSelectionHeader("ELITE REWARD");
+        SetRerollVisible(false);
+
+        _rerollsLeft = 0;
+
+        PopulateOptions();
+        SetLevelUpUIActive(true);
+
+        Time.timeScale = 0f;
+
+        return true;
     }
 
     // Picks 3 unique weighted-random options and binds them to the three cards.
@@ -702,11 +750,36 @@ public class UIManager : MonoBehaviour
     // Reroll button: swaps the three options for a new random set, one use per press.
     private void DoReroll()
     {
-        if (_rerollsLeft <= 0)
+        if (_selectionSource != UpgradeSelectionSource.LevelUp)
+        {
             return;
+        }
+
+        if (_rerollsLeft <= 0)
+        {
+            return;
+        }
+
         _rerollsLeft--;
+
         PopulateOptions();
         UpdateRerollLabel();
+    }
+
+    private void SetSelectionHeader(string headerText)
+    {
+        if (_selectionHeader != null)
+        {
+            _selectionHeader.text = headerText;
+        }
+    }
+
+    private void SetRerollVisible(bool visible)
+    {
+        if (_rerollButton != null)
+        {
+            _rerollButton.gameObject.SetActive(visible);
+        }
     }
 
     // Updates the reroll button's label ("REROLL (n)") and disables it at zero.
@@ -968,10 +1041,15 @@ public class UIManager : MonoBehaviour
                 break;
         }
 
-        // Hide panels
+        UpdateStatsPanelText();
+
         SetLevelUpUIActive(false);
 
-        // Resume game time
+        _selectionSource = UpgradeSelectionSource.LevelUp;
+
+        SetSelectionHeader("LEVEL UP");
+        SetRerollVisible(true);
+
         Time.timeScale = 1f;
 
         Debug.Log($"Applied Upgrade: {option.title}");
@@ -1359,31 +1437,49 @@ public class UIManager : MonoBehaviour
     private void CreateLevelUpHeader()
     {
         if (levelUpPanel == null)
+        {
             return;
-        if (levelUpPanel.transform.Find("__Header") != null)
-            return;
+        }
 
-        GameObject headerObj = new GameObject(
+        Transform existing = levelUpPanel.transform.Find("__Header");
+
+        if (existing != null)
+        {
+            _selectionHeader = existing.GetComponent<TextMeshProUGUI>();
+
+            return;
+        }
+
+        GameObject headerObject = new GameObject(
             "__Header",
             typeof(RectTransform),
             typeof(CanvasRenderer),
             typeof(TextMeshProUGUI)
         );
-        RectTransform rt = headerObj.GetComponent<RectTransform>();
-        rt.SetParent(levelUpPanel.transform, false);
-        rt.anchorMin = new Vector2(0.05f, 0.86f);
-        rt.anchorMax = new Vector2(0.95f, 0.99f);
-        rt.offsetMin = Vector2.zero;
-        rt.offsetMax = Vector2.zero;
 
-        TextMeshProUGUI t = headerObj.GetComponent<TextMeshProUGUI>();
-        t.text = "LEVEL UP";
-        t.color = UITheme.Gold;
-        t.fontStyle = FontStyles.Bold | FontStyles.UpperCase;
-        t.characterSpacing = 10f;
-        t.enableAutoSizing = true;
-        t.fontSizeMin = 24f;
-        t.fontSizeMax = 44f;
-        t.alignment = TextAlignmentOptions.Center;
+        RectTransform rectTransform = headerObject.GetComponent<RectTransform>();
+
+        rectTransform.SetParent(levelUpPanel.transform, false);
+
+        rectTransform.anchorMin = new Vector2(0.05f, 0.86f);
+
+        rectTransform.anchorMax = new Vector2(0.95f, 0.99f);
+
+        rectTransform.offsetMin = Vector2.zero;
+        rectTransform.offsetMax = Vector2.zero;
+
+        _selectionHeader = headerObject.GetComponent<TextMeshProUGUI>();
+
+        _selectionHeader.text = "LEVEL UP";
+        _selectionHeader.color = UITheme.Gold;
+
+        _selectionHeader.fontStyle = FontStyles.Bold | FontStyles.UpperCase;
+
+        _selectionHeader.characterSpacing = 10f;
+        _selectionHeader.enableAutoSizing = true;
+        _selectionHeader.fontSizeMin = 24f;
+        _selectionHeader.fontSizeMax = 44f;
+
+        _selectionHeader.alignment = TextAlignmentOptions.Center;
     }
 }
