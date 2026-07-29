@@ -38,6 +38,9 @@ public class PlayerStats : MonoBehaviour
     )]
     public float armor = 0f;
 
+    [Tooltip("Determines whether the player currently ignores incoming damage.")]
+    public bool IsInvulnerable { get; private set; }
+
     [Header("Gold Settings")]
     public int goldCollected;
 
@@ -74,17 +77,25 @@ public class PlayerStats : MonoBehaviour
         xpToNextLevel = 100f;
 
         XPPickupRange = baseXPPickupRange;
+
+        IsInvulnerable = false;
     }
 
     private void NotifyInitialValues()
     {
         NotifyHealthChanged();
         NotifyXPChanged();
+
         OnGoldChanged?.Invoke(goldCollected);
     }
 
     public void TakeDamage(float damage)
     {
+        if (IsInvulnerable)
+        {
+            return;
+        }
+
         float finalDamage = Mathf.Max(1f, damage - armor);
 
         currentHealth = Mathf.Max(0f, currentHealth - finalDamage);
@@ -119,7 +130,13 @@ public class PlayerStats : MonoBehaviour
     public void AddGold(int amount)
     {
         goldCollected += amount;
+
         OnGoldChanged?.Invoke(goldCollected);
+    }
+
+    public void SetInvulnerable(bool invulnerable)
+    {
+        IsInvulnerable = invulnerable;
     }
 
     public void IncreaseXPPickupRange(float multiplier)
@@ -150,6 +167,7 @@ public class PlayerStats : MonoBehaviour
         NotifyXPChanged();
 
         Time.timeScale = 0f;
+
         OnLevelUp?.Invoke();
 
         Debug.Log($"Level Up! Current Level: {currentLevel}");
