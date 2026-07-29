@@ -27,6 +27,8 @@ public class EnemySpawner : MonoBehaviour
         public float speedMultiplier;
     }
 
+    public static event System.Action OnEliteIncoming;
+
     [Header("Target Player")]
     [Tooltip(
         "Player transform used as the center of the spawn area. "
@@ -52,11 +54,17 @@ public class EnemySpawner : MonoBehaviour
     [Tooltip("Determines whether elite enemies can spawn.")]
     public bool eliteEnemiesEnabled = true;
 
+    [Tooltip("How many seconds before the elite spawn the warning appears.")]
+    [Min(0f)]
+    public float eliteWarningLeadTime = 3f;
+
     [Tooltip("Delay before the first elite enemy appears.")]
     [Min(1f)]
     public float firstEliteDelay = 40f;
 
-    [Tooltip("Time between elite enemies. The timer starts again after the previous elite dies.")]
+    [Tooltip(
+        "Time between elite enemies. " + "The timer starts again after the previous elite dies."
+    )]
     [Min(1f)]
     public float eliteSpawnInterval = 45f;
 
@@ -96,7 +104,9 @@ public class EnemySpawner : MonoBehaviour
 
     private float _spawnTimer;
     private float _eliteTimer;
+
     private bool _firstEliteSpawned;
+    private bool _eliteWarningShown;
 
     private GameObject _activeElite;
 
@@ -154,7 +164,7 @@ public class EnemySpawner : MonoBehaviour
             return;
         }
 
-        // Unity's destroyed objects compare equal to null.
+        // Unity destroys the reference when the elite enemy is removed.
         if (_activeElite != null)
         {
             return;
@@ -164,6 +174,14 @@ public class EnemySpawner : MonoBehaviour
 
         float requiredDelay = _firstEliteSpawned ? eliteSpawnInterval : firstEliteDelay;
 
+        float warningTime = Mathf.Max(0f, requiredDelay - eliteWarningLeadTime);
+
+        if (!_eliteWarningShown && _eliteTimer >= warningTime)
+        {
+            _eliteWarningShown = true;
+            OnEliteIncoming?.Invoke();
+        }
+
         if (_eliteTimer < requiredDelay)
         {
             return;
@@ -172,6 +190,7 @@ public class EnemySpawner : MonoBehaviour
         if (SpawnEliteEnemy())
         {
             _eliteTimer = 0f;
+            _eliteWarningShown = false;
             _firstEliteSpawned = true;
         }
     }
@@ -309,7 +328,7 @@ public class EnemySpawner : MonoBehaviour
 
             enemyAI.speed *= eliteSpeedMultiplier;
 
-            // Larger enemies need a slightly larger attack range.
+            // Larger enemies need a larger attack distance.
             enemyAI.attackRange *= eliteScaleMultiplier;
         }
 
@@ -359,7 +378,7 @@ public class EnemySpawner : MonoBehaviour
             }
         }
 
-        return enemyTypes.Count - 1;
+        return -1;
     }
 
     private Vector3 GetRandomSpawnPositionAroundPlayer()
@@ -407,7 +426,10 @@ public class EnemySpawner : MonoBehaviour
     {
         _spawnTimer = 0f;
         _eliteTimer = 0f;
+
         _firstEliteSpawned = false;
+        _eliteWarningShown = false;
+
         _activeElite = null;
     }
 }

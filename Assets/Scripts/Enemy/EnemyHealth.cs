@@ -8,7 +8,6 @@ public class EnemyHealth : MonoBehaviour
     public float maxHealth = 20f;
 
     public float CurrentHealth => _currentHealth;
-
     public bool IsElite { get; private set; }
 
     [Header("XP Settings")]
@@ -38,6 +37,20 @@ public class EnemyHealth : MonoBehaviour
     [Tooltip("Duration of the hit flash.")]
     public float flashDuration = 0.08f;
 
+    public static event System.Action<EnemyHealth> OnEliteSpawned;
+
+    public static event System.Action<EnemyHealth, float, float> OnEliteHealthChanged;
+
+    public static event System.Action<EnemyHealth> OnEliteRemoved;
+
+    public string DisplayName
+    {
+        get
+        {
+            return gameObject.name.Replace("[ELITE]", "").Replace("(Clone)", "").Trim().ToUpper();
+        }
+    }
+
     private float _currentHealth;
 
     private Renderer[] _renderers;
@@ -45,6 +58,10 @@ public class EnemyHealth : MonoBehaviour
     private Coroutine _flashRoutine;
 
     private Color _eliteTint = new Color(0.75f, 0.15f, 1f, 1f);
+
+    private bool _hasStarted;
+    private bool _eliteSpawnReported;
+    private bool _eliteRemovalReported;
 
     private static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
 
@@ -59,6 +76,9 @@ public class EnemyHealth : MonoBehaviour
         _propertyBlock = new MaterialPropertyBlock();
 
         RestoreVisualColor();
+
+        _hasStarted = true;
+        ReportEliteSpawn();
     }
 
     public void ConfigureAsElite(int xpDropCount, Color tint)
@@ -69,16 +89,27 @@ public class EnemyHealth : MonoBehaviour
 
         _eliteTint = tint;
 
-        // Also supports being called after Start.
+        // Supports being configured after Start as well.
         if (_renderers != null)
         {
             RestoreVisualColor();
+        }
+
+        if (_hasStarted)
+        {
+            ReportEliteSpawn();
         }
     }
 
     public void TakeDamage(float damage)
     {
         _currentHealth -= damage;
+        _currentHealth = Mathf.Max(0f, _currentHealth);
+
+        if (IsElite)
+        {
+            OnEliteHealthChanged?.Invoke(this, _currentHealth, maxHealth);
+        }
 
         JuiceManager.DamageNumber(transform.position, damage);
 
@@ -92,15 +123,17 @@ public class EnemyHealth : MonoBehaviour
 
         JuiceManager.Shake(IsElite ? 0.2f : 0.12f);
 
-        if (_renderers != null && _renderers.Length > 0)
+        if (_renderers == null || _renderers.Length == 0)
         {
-            if (_flashRoutine != null)
-            {
-                StopCoroutine(_flashRoutine);
-            }
-
-            _flashRoutine = StartCoroutine(FlashRoutine());
+            return;
         }
+
+        if (_flashRoutine != null)
+        {
+            StopCoroutine(_flashRoutine);
+        }
+
+        _flashRoutine = StartCoroutine(FlashRoutine());
     }
 
     private void Die()
@@ -110,6 +143,7 @@ public class EnemyHealth : MonoBehaviour
         JuiceManager.Shake(IsElite ? 0.65f : 0.3f);
 
         RewardPlayer();
+        ReportEliteRemoval();
 
         Destroy(gameObject);
     }
@@ -124,7 +158,7 @@ public class EnemyHealth : MonoBehaviour
         }
         else if (playerStats != null)
         {
-            // Fallback in case the XP prefab is not assigned.
+            // Fallback if the XP prefab is not assigned.
             playerStats.AddXP(xpReward);
         }
 
@@ -229,27 +263,59 @@ public class EnemyHealth : MonoBehaviour
             return _eliteTint;
         }
 
-        if (_renderers != null)
+        if (_renderers == null)
         {
-            foreach (Renderer enemyRenderer in _renderers)
+            return Color.white;
+        }
+
+        foreach (Renderer enemyRenderer in _renderers)
+        {
+            if (enemyRenderer == null || enemyRenderer.sharedMaterial == null)
             {
-                if (enemyRenderer == null || enemyRenderer.sharedMaterial == null)
-                {
-                    continue;
-                }
+                continue;
+            }
 
-                if (enemyRenderer.sharedMaterial.HasProperty(BaseColorId))
-                {
-                    return enemyRenderer.sharedMaterial.GetColor(BaseColorId);
-                }
+            if (enemyRenderer.sharedMaterial.HasProperty(BaseColorId))
+            {
+                return enemyRenderer.sharedMaterial.GetColor(BaseColorId);
+            }
 
-                if (enemyRenderer.sharedMaterial.HasProperty(ColorId))
-                {
-                    return enemyRenderer.sharedMaterial.GetColor(ColorId);
-                }
+            if (enemyRenderer.sharedMaterial.HasProperty(ColorId))
+            {
+                return enemyRenderer.sharedMaterial.GetColor(ColorId);
             }
         }
 
         return Color.white;
+    }
+
+    private void ReportEliteSpawn()
+    {
+        if (!IsElite || _eliteSpawnReported)
+        {
+            return;
+        }
+
+        _eliteSpawnReported = true;
+
+        OnEliteSpawned?.Invoke(this);
+
+        OnEliteHealthChanged?.Invoke(this, _currentHealth, maxHealth);
+    }
+
+    private void ReportEliteRemoval()
+    {
+        if (!IsElite || _eliteRemovalReported)
+        {
+            return;
+        }
+
+        _eliteRemovalReported = true;
+        OnEliteRemoved?.Invoke(this);
+    }
+
+    private void OnDestroy()
+    {
+        ReportEliteRemoval();
     }
 }
