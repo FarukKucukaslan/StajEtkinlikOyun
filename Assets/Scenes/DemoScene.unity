@@ -14973,7 +14973,7 @@ GameObject:
   - component: {fileID: 450054510}
   - component: {fileID: 450054512}
   - component: {fileID: 450054511}
-  m_Layer: 0
+  m_Layer: 6
   m_Name: Terrain_(0.0, 0.0, -200.0)
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -25847,7 +25847,7 @@ GameObject:
   - component: {fileID: 779273841}
   - component: {fileID: 779273843}
   - component: {fileID: 779273842}
-  m_Layer: 0
+  m_Layer: 6
   m_Name: Terrain_(-200.0, 0.0, 0.0)
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -35003,7 +35003,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 1025721641}
-  m_Layer: 0
+  m_Layer: 6
   m_Name: Terrain
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -35299,7 +35299,7 @@ GameObject:
   - component: {fileID: 1029950784}
   - component: {fileID: 1029950786}
   - component: {fileID: 1029950785}
-  m_Layer: 0
+  m_Layer: 6
   m_Name: Terrain_(-200.0, 0.0, -200.0)
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -37539,7 +37539,7 @@ GameObject:
   - component: {fileID: 1085825462}
   - component: {fileID: 1085825464}
   - component: {fileID: 1085825463}
-  m_Layer: 0
+  m_Layer: 6
   m_Name: Terrain_200x200
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -66122,6 +66122,9 @@ MonoBehaviour:
   spawnInterval: 1.5
   minSpawnDistance: 12
   maxSpawnDistance: 20
+  groundMask:
+    serializedVersion: 2
+    m_Bits: 64
   eliteEnemiesEnabled: 1
   eliteWarningLeadTime: 3
   firstEliteDelay: 6

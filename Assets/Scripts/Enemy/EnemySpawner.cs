@@ -50,6 +50,10 @@ public class EnemySpawner : MonoBehaviour
     [Tooltip("Maximum spawn distance from the player.")]
     public float maxSpawnDistance = 20f;
 
+    [Header("Ground Detection")]
+    [Tooltip("Only these layers are considered valid enemy spawn ground.")]
+    public LayerMask groundMask;
+
     [Header("Elite Enemy Settings")]
     [Tooltip("Determines whether elite enemies can spawn.")]
     public bool eliteEnemiesEnabled = true;
@@ -395,7 +399,15 @@ public class EnemySpawner : MonoBehaviour
 
         Ray groundRay = new Ray(spawnPosition + Vector3.up * 25f, Vector3.down);
 
-        if (Physics.Raycast(groundRay, out RaycastHit hit, 50f))
+        if (
+            Physics.Raycast(
+                groundRay,
+                out RaycastHit hit,
+                50f,
+                groundMask,
+                QueryTriggerInteraction.Ignore
+            )
+        )
         {
             spawnPosition.y = hit.point.y;
         }
