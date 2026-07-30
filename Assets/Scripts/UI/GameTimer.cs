@@ -1,9 +1,12 @@
+using System;
 using System.Collections;
 using UnityEngine;
 using TMPro;
 
 public class GameTimer : MonoBehaviour
 {
+    public static event Action OnFiveMinutesPassed;
+
     [Header("UI Reference")]
     public TextMeshProUGUI timerText;
 
@@ -26,6 +29,7 @@ public class GameTimer : MonoBehaviour
 
     private float _elapsedTime;
     private int _lastIntervalTick = 0;
+    private int _lastFiveMinuteTick = 0;
     private Coroutine _flashCoroutine;
 
     private void Start()
@@ -58,6 +62,16 @@ public class GameTimer : MonoBehaviour
             _lastIntervalTick = currentIntervalTick;
             OnIntervalPassed();
         }
+
+        // Detect every 5 minutes
+        int currentFiveMinuteTick = (int)(_elapsedTime / 300f);
+        if (currentFiveMinuteTick > _lastFiveMinuteTick)
+        {
+            _lastFiveMinuteTick = currentFiveMinuteTick;
+            OnFiveMinutesPassed?.Invoke();
+
+            Debug.Log($"5 minutes passed! ({currentFiveMinuteTick * 5} minutes)");
+        }
     }
 
     private void UpdateTimerText()
@@ -67,23 +81,24 @@ public class GameTimer : MonoBehaviour
         int minutes = (int)(_elapsedTime / 60f);
         int seconds = (int)(_elapsedTime % 60f);
 
-        // Format: "01:05" (Minutes:Seconds)
         timerText.text = string.Format("{0:00}:{1:00}", minutes, seconds);
     }
 
     private void OnIntervalPassed()
     {
-        // Start the red flash effect (cancels previous flash routine if active)
         if (_flashCoroutine != null)
         {
             StopCoroutine(_flashCoroutine);
         }
+
         _flashCoroutine = StartCoroutine(FlashTimerRedRoutine());
 
-        // Make spawning faster by reducing the spawn interval
         if (enemySpawner != null)
         {
-            enemySpawner.spawnInterval = Mathf.Max(minSpawnInterval, enemySpawner.spawnInterval - intervalDecreaseAmount);
+            enemySpawner.spawnInterval = Mathf.Max(
+                minSpawnInterval,
+                enemySpawner.spawnInterval - intervalDecreaseAmount);
+
             Debug.Log($"30 seconds passed! Difficulty scaled. New spawn interval: {enemySpawner.spawnInterval} seconds.");
         }
     }
@@ -92,13 +107,10 @@ public class GameTimer : MonoBehaviour
     {
         if (timerText == null) yield break;
 
-        // Turn text red
         timerText.color = minutePassedColor;
 
-        // Wait in real-time seconds (unaffected by game time pauses)
         yield return new WaitForSecondsRealtime(flashDuration);
 
-        // Turn text back to default color
         timerText.color = defaultColor;
         _flashCoroutine = null;
     }
@@ -107,11 +119,15 @@ public class GameTimer : MonoBehaviour
     {
         _elapsedTime = 0f;
         _lastIntervalTick = 0;
+        _lastFiveMinuteTick = 0;
+
         UpdateTimerText();
+
         if (timerText != null)
         {
             timerText.color = defaultColor;
         }
+
         if (_flashCoroutine != null)
         {
             StopCoroutine(_flashCoroutine);
@@ -119,10 +135,9 @@ public class GameTimer : MonoBehaviour
         }
     }
 
-// Seconds survived this run. Used by the death screen to show run length.
+    // Seconds survived this run. Used by the death screen to show run length.
     public float GetElapsedTime()
     {
         return _elapsedTime;
     }
-
 }
