@@ -1,11 +1,49 @@
 using System;
 using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
 using TMPro;
 
 public class GameTimer : MonoBehaviour
 {
     public static event Action OnFiveMinutesPassed;
+
+    [Serializable]
+    public struct TimedEnemySpawn
+    {
+        [Tooltip("Enemy prefab to spawn (must have EnemyHealth and an AI component, e.g. ItemThrowerEnemy).")]
+        public GameObject enemyPrefab;
+
+        [Tooltip("Elapsed run time, in minutes, at which this enemy first spawns.")]
+        public float spawnAtMinute;
+
+        [Tooltip("If greater than 0, the enemy spawns again every this many minutes after the first spawn.")]
+        public float repeatEveryMinutes;
+
+        [Tooltip("Distance from the player at which the enemy spawns.")]
+        public float spawnRadius;
+
+        [HideInInspector]
+        public float nextSpawnTime;
+    }
+
+    [Header("Timed Enemy Spawns")]
+    [Tooltip("Special enemies that spawn once the run reaches a specific elapsed time.")]
+    public List<TimedEnemySpawn> timedEnemySpawns = new List<TimedEnemySpawn>();
+
+    [Header("Timed Enemy Warning")]
+    [Tooltip("Text flashed every 30 seconds while a timed enemy spawn is still pending.")]
+    public TextMeshProUGUI timedEnemyWarningText;
+
+    [Tooltip("Message shown in the warning text.")]
+    public string timedEnemyWarningMessage = "HE IS COMING";
+
+    [Tooltip("How long the warning stays visible each time it flashes.")]
+    public float timedEnemyWarningDuration = 2f;
+
+    private Coroutine _timedEnemyWarningCoroutine;
+
+    private Transform _player;
 
     [Header("UI Reference")]
     public TextMeshProUGUI timerText;
@@ -45,6 +83,13 @@ public class GameTimer : MonoBehaviour
             timerText.color = defaultColor;
             UpdateTimerText();
         }
+
+        if (timedEnemyWarningText != null)
+        {
+            timedEnemyWarningText.gameObject.SetActive(false);
+        }
+
+        InitializeTimedEnemySpawns();
     }
 
     private void Update()
@@ -72,6 +117,83 @@ public class GameTimer : MonoBehaviour
 
             Debug.Log($"5 minutes passed! ({currentFiveMinuteTick * 5} minutes)");
         }
+
+        UpdateTimedEnemySpawns();
+    }
+
+    private void InitializeTimedEnemySpawns()
+    {
+        if (_player == null)
+        {
+            GameObject playerObject = GameObject.FindGameObjectWithTag("Player");
+
+            if (playerObject != null)
+            {
+                _player = playerObject.transform;
+            }
+        }
+
+        for (int i = 0; i < timedEnemySpawns.Count; i++)
+        {
+            TimedEnemySpawn spawn = timedEnemySpawns[i];
+            spawn.nextSpawnTime = spawn.spawnAtMinute * 60f;
+            timedEnemySpawns[i] = spawn;
+        }
+    }
+
+    private void UpdateTimedEnemySpawns()
+    {
+        if (_player == null)
+        {
+            return;
+        }
+
+        for (int i = 0; i < timedEnemySpawns.Count; i++)
+        {
+            TimedEnemySpawn spawn = timedEnemySpawns[i];
+
+            if (spawn.enemyPrefab == null || _elapsedTime < spawn.nextSpawnTime)
+            {
+                continue;
+            }
+
+            SpawnTimedEnemy(spawn);
+
+            if (spawn.repeatEveryMinutes > 0f)
+            {
+                spawn.nextSpawnTime += spawn.repeatEveryMinutes * 60f;
+            }
+            else
+            {
+                spawn.nextSpawnTime = float.MaxValue;
+            }
+
+            timedEnemySpawns[i] = spawn;
+        }
+    }
+
+    private void SpawnTimedEnemy(TimedEnemySpawn spawn)
+    {
+        Vector2 randomOffset2D = UnityEngine.Random.insideUnitCircle.normalized * spawn.spawnRadius;
+
+        Vector3 spawnPosition = _player.position + new Vector3(randomOffset2D.x, 0f, randomOffset2D.y);
+
+        Ray groundRay = new Ray(spawnPosition + Vector3.up * 25f, Vector3.down);
+
+        LayerMask groundMask = enemySpawner != null ? enemySpawner.groundMask : (LayerMask)0;
+
+        if (Physics.Raycast(groundRay, out RaycastHit hit, 50f, groundMask, QueryTriggerInteraction.Ignore))
+        {
+            spawnPosition.y = hit.point.y;
+        }
+        else
+        {
+            spawnPosition.y = _player.position.y;
+        }
+
+        Instantiate(spawn.enemyPrefab, spawnPosition, Quaternion.identity);
+
+        JuiceManager.ChaosPulse();
     }
 
     private void UpdateTimerText()
@@ -101,6 +223,8 @@ public class GameTimer : MonoBehaviour
 
             Debug.Log($"30 seconds passed! Difficulty scaled. New spawn interval: {enemySpawner.spawnInterval} seconds.");
         }
+
+        ShowTimedEnemyWarningIfPending();
     }
 
     private IEnumerator FlashTimerRedRoutine()
@@ -113,6 +237,51 @@ public class GameTimer : MonoBehaviour
 
         timerText.color = defaultColor;
         _flashCoroutine = null;
+    }
+
+    // Flashes the warning text if any timed enemy spawn hasn't happened yet.
+    private void ShowTimedEnemyWarningIfPending()
+    {
+        if (timedEnemyWarningText == null)
+        {
+            return;
+        }
+
+        bool hasPendingSpawn = false;
+
+        foreach (TimedEnemySpawn spawn in timedEnemySpawns)
+        {
+            if (spawn.enemyPrefab != null
+                && spawn.nextSpawnTime > _elapsedTime
+                && spawn.nextSpawnTime < float.MaxValue)
+            {
+                hasPendingSpawn = true;
+                break;
+            }
+        }
+
+        if (!hasPendingSpawn)
+        {
+            return;
+        }
+
+        if (_timedEnemyWarningCoroutine != null)
+        {
+            StopCoroutine(_timedEnemyWarningCoroutine);
+        }
+
+        _timedEnemyWarningCoroutine = StartCoroutine(TimedEnemyWarningRoutine());
+    }
+
+    private IEnumerator TimedEnemyWarningRoutine()
+    {
+        timedEnemyWarningText.text = timedEnemyWarningMessage;
+        timedEnemyWarningText.gameObject.SetActive(true);
+
+        yield return new WaitForSecondsRealtime(timedEnemyWarningDuration);
+
+        timedEnemyWarningText.gameObject.SetActive(false);
+        _timedEnemyWarningCoroutine = null;
     }
 
     public void ResetTimer()
@@ -133,6 +302,19 @@ public class GameTimer : MonoBehaviour
             StopCoroutine(_flashCoroutine);
             _flashCoroutine = null;
         }
+
+        if (_timedEnemyWarningCoroutine != null)
+        {
+            StopCoroutine(_timedEnemyWarningCoroutine);
+            _timedEnemyWarningCoroutine = null;
+        }
+
+        if (timedEnemyWarningText != null)
+        {
+            timedEnemyWarningText.gameObject.SetActive(false);
+        }
+
+        InitializeTimedEnemySpawns();
     }
 
     // Seconds survived this run. Used by the death screen to show run length.

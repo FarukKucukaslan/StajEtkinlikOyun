@@ -27,6 +27,10 @@ public class JuiceManager : MonoBehaviour
     private Coroutine _flashRoutine;
     private static Sprite _vignetteSprite;
 
+    private Transform _flashCanvasTransform;
+    private Image _darkOverlay;           // full-screen black overlay used for the chaos pulse
+    private Coroutine _darkRoutine;
+
     // Runs once after the first scene loads; spawns the manager so no scene setup is needed.
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
     private static void Bootstrap()
@@ -37,6 +41,7 @@ public class JuiceManager : MonoBehaviour
         DontDestroyOnLoad(go);
         _instance.BuildCanvas();
         _instance.BuildFlashOverlay();
+        _instance.BuildDarkOverlay();
     }
 
     private void BuildCanvas()
@@ -75,6 +80,95 @@ public class JuiceManager : MonoBehaviour
         _hitFlash.sprite = GetVignetteSprite();
         _hitFlash.raycastTarget = false;
         _hitFlash.color = new Color(0.85f, 0.10f, 0.10f, 0f); // red, invisible until a hit
+
+        _flashCanvasTransform = canvasObj.transform;
+    }
+
+    // ----- Chaos pulse (full-screen darken + shake, e.g. on a special enemy spawn) ---
+
+    // Full-screen solid black overlay, hidden until a chaos pulse plays.
+    private void BuildDarkOverlay()
+    {
+        GameObject img = new GameObject("ChaosDarken", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+        RectTransform rt = img.GetComponent<RectTransform>();
+        rt.SetParent(_flashCanvasTransform, false);
+        rt.anchorMin = Vector2.zero;
+        rt.anchorMax = Vector2.one;
+        rt.offsetMin = Vector2.zero;
+        rt.offsetMax = Vector2.zero;
+
+        // Draw below the hit flash so a hit taken during a pulse still reads clearly on top.
+        rt.SetAsFirstSibling();
+
+        _darkOverlay = img.GetComponent<Image>();
+        _darkOverlay.raycastTarget = false;
+        _darkOverlay.color = new Color(0f, 0f, 0f, 0f);
+    }
+
+    /// <summary>
+    /// White flash, then settles into a dark tint that stays on screen (does not fade back out).
+    /// Call when a special enemy (e.g. the item thrower) spawns. Use <see cref="ClearChaosDarken"/>
+    /// to lift the persistent darkening (e.g. on a new run).
+    /// </summary>
+    public static void ChaosPulse(float darkenAlpha = 0.55f, float flashDuration = 0.08f, float shakeIntensity = 0.3f)
+    {
+        if (_instance == null) return;
+        _instance.DoChaosPulse(darkenAlpha, flashDuration);
+        Shake(shakeIntensity);
+    }
+
+    /// <summary>Instantly lifts the persistent chaos darkening. Call when a new run starts.</summary>
+    public static void ClearChaosDarken()
+    {
+        if (_instance == null) return;
+        if (_instance._darkRoutine != null)
+        {
+            _instance.StopCoroutine(_instance._darkRoutine);
+            _instance._darkRoutine = null;
+        }
+        _instance.SetDarkOverlay(Color.black, 0f);
+    }
+
+    private void DoChaosPulse(float darkenAlpha, float flashDuration)
+    {
+        if (_darkOverlay == null) return;
+        if (_darkRoutine != null) StopCoroutine(_darkRoutine);
+        _darkRoutine = StartCoroutine(ChaosPulseRoutine(Mathf.Clamp01(darkenAlpha), flashDuration));
+    }
+
+    // Snaps to a bright white flash, then eases into a dark tint and holds it there for good.
+    private IEnumerator ChaosPulseRoutine(float peak, float flashDuration)
+    {
+        const float flashAlpha = 0.85f;
+        const float settleDuration = 0.5f;
+
+        SetDarkOverlay(Color.white, flashAlpha);
+
+        float t = 0f;
+        while (t < flashDuration)
+        {
+            t += Time.unscaledDeltaTime;
+            yield return null;
+        }
+
+        t = 0f;
+        while (t < settleDuration)
+        {
+            t += Time.unscaledDeltaTime;
+            float k = t / settleDuration;
+            SetDarkOverlay(Color.Lerp(Color.white, Color.black, k), Mathf.Lerp(flashAlpha, peak, k));
+            yield return null;
+        }
+
+        SetDarkOverlay(Color.black, peak);
+        _darkRoutine = null;
+    }
+
+    private void SetDarkOverlay(Color color, float alpha)
+    {
+        if (_darkOverlay == null) return;
+        color.a = alpha;
+        _darkOverlay.color = color;
     }
 
     // Builds (once) a soft radial sprite: clear in the middle, opaque toward the edges.

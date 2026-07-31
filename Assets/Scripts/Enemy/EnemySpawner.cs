@@ -106,6 +106,12 @@ public class EnemySpawner : MonoBehaviour
     [HideInInspector]
     public bool isSpawning;
 
+    // Stacking multipliers granted by the "Challenge" level-up upgrade.
+    // Applied on top of the per-type and elite multipliers below.
+    private float _challengeHealthMultiplier = 1f;
+    private float _challengeDamageMultiplier = 1f;
+    private float _challengeSpeedMultiplier = 1f;
+
     private float _spawnTimer;
     private float _eliteTimer;
 
@@ -284,7 +290,9 @@ public class EnemySpawner : MonoBehaviour
 
         if (enemyHealth != null)
         {
-            enemyHealth.maxHealth = Mathf.Round(enemyHealth.maxHealth * healthAndRewardScale);
+            enemyHealth.maxHealth = Mathf.Round(
+                enemyHealth.maxHealth * healthAndRewardScale * _challengeHealthMultiplier
+            );
 
             enemyHealth.xpReward = Mathf.Round(enemyHealth.xpReward * healthAndRewardScale);
 
@@ -299,16 +307,20 @@ public class EnemySpawner : MonoBehaviour
 
         if (archerAI != null)
         {
-            archerAI.moveSpeed *= speedScale;
+            archerAI.moveSpeed *= speedScale * _challengeSpeedMultiplier;
 
-            archerAI.projectileDamage = Mathf.Round(archerAI.projectileDamage * damageScale);
+            archerAI.projectileDamage = Mathf.Round(
+                archerAI.projectileDamage * damageScale * _challengeDamageMultiplier
+            );
         }
 
         if (enemyAI != null)
         {
-            enemyAI.speed *= speedScale;
+            enemyAI.speed *= speedScale * _challengeSpeedMultiplier;
 
-            enemyAI.damage = Mathf.Round(enemyAI.damage * damageScale);
+            enemyAI.damage = Mathf.Round(
+                enemyAI.damage * damageScale * _challengeDamageMultiplier
+            );
         }
     }
 
@@ -437,6 +449,29 @@ public class EnemySpawner : MonoBehaviour
         }
 
         return spawnPosition;
+    }
+
+    // Called by the "Challenge" upgrade. Stacks on every pick.
+    public void ApplyChallengeUpgrade(
+        float healthMultiplierIncrease,
+        float damageMultiplierIncrease,
+        float speedMultiplierIncrease
+    )
+    {
+        _challengeHealthMultiplier += healthMultiplierIncrease;
+        _challengeDamageMultiplier += damageMultiplierIncrease;
+        _challengeSpeedMultiplier += speedMultiplierIncrease;
+    }
+
+    // Spawns an elite immediately, bypassing the elite timer. Used for testing (e.g. from the pause button).
+    public void ForceSpawnElite()
+    {
+        if (SpawnEliteEnemy())
+        {
+            _eliteTimer = 0f;
+            _eliteWarningShown = false;
+            _firstEliteSpawned = true;
+        }
     }
 
     public void ClearAllEnemies()

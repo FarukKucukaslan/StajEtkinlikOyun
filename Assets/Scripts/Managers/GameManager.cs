@@ -106,6 +106,8 @@ public class GameManager : MonoBehaviour
             gameTimer.ResetTimer();
         }
 
+        JuiceManager.ClearChaosDarken();
+
         // 4. Clear objects left from the previous run.
         if (enemySpawner != null)
         {

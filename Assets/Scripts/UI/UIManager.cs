@@ -6,7 +6,7 @@ using UnityEngine.UI;
 
 public class UIManager : MonoBehaviour
 {
-    public enum UpgradeType
+    public enum UpgradeType 
     {
         MoveSpeed,
         MaxHealth,
@@ -19,6 +19,7 @@ public class UIManager : MonoBehaviour
         SearchRange,
         ProjectileSpeed,
         XPMagnet,
+        Challenge,
     }
 
     [System.Serializable]
@@ -110,7 +111,7 @@ public class UIManager : MonoBehaviour
 
     private const float XPPickupRangeMultiplier = 1.3f;
 
-    // Available upgrades pool with weights (Total: 11 options)
+    // Available upgrades pool with weights (Total: 12 options)
     private readonly List<UpgradeOption> _availableUpgrades = new List<UpgradeOption>()
     {
         // COMMON (Weight: 80)
@@ -204,7 +205,22 @@ public class UIManager : MonoBehaviour
             weight = 10,
             rarity = "Epic",
         },
+        new UpgradeOption
+        {
+            type = UpgradeType.Challenge,
+            title = "Challenge",
+            description = "Pick this if you have the courage. Enemies grow stronger for the rest of the run.",
+            weight = 11, 
+            rarity = "Epic",
+        },
     };
+
+    // Multiplier increase applied to enemy health/damage/speed each time the Challenge upgrade is picked.
+    private const float ChallengeHealthIncrease = 0.15f;
+    private const float ChallengeDamageIncrease = 0.15f;
+    private const float ChallengeSpeedIncrease = 0.05f;
+
+    private EnemySpawner _enemySpawner;
 
     public static UIManager Instance { get; private set; }
 
@@ -954,8 +970,22 @@ public class UIManager : MonoBehaviour
                 float nextPickupRange = playerStats.GetNextXPPickupRange(XPPickupRangeMultiplier);
 
                 return $"{playerStats.XPPickupRange:F1} -> " + $"{nextPickupRange:F1} range";
+
+            case UpgradeType.Challenge:
+                return $"Enemies +{ChallengeHealthIncrease * 100f:F0}% HP / "
+                    + $"+{ChallengeDamageIncrease * 100f:F0}% DMG";
         }
         return "";
+    }
+
+    private EnemySpawner GetEnemySpawner()
+    {
+        if (_enemySpawner == null)
+        {
+            _enemySpawner = FindFirstObjectByType<EnemySpawner>();
+        }
+
+        return _enemySpawner;
     }
 
     private void SelectUpgrade(UpgradeOption option)
@@ -1038,6 +1068,18 @@ public class UIManager : MonoBehaviour
 
             case UpgradeType.XPMagnet:
                 playerStats.IncreaseXPPickupRange(XPPickupRangeMultiplier);
+                break;
+
+            case UpgradeType.Challenge:
+                EnemySpawner spawner = GetEnemySpawner();
+                if (spawner != null)
+                {
+                    spawner.ApplyChallengeUpgrade(
+                        ChallengeHealthIncrease,
+                        ChallengeDamageIncrease,
+                        ChallengeSpeedIncrease
+                    );
+                }
                 break;
         }
 
